@@ -528,10 +528,11 @@ function fail(){
 }
 
 /* ================= K线技术层 =================
-   串行逐只拉取：一次只发一路请求，只与上一只间隔 300ms。
+   并发池拉取：同时最多 4 只在途（MA_CONC=4），绝不 48 连发。
    每股三路源依次兜底（均为前复权）：东财 fetch → 东财 cb= JSONP → 腾讯 _var= JSONP。
    东财连败则 10 分钟内改腾讯优先，东财任一路成功即自动复位；连续 3 只全源失败即熔断本轮。
-   20日线/5日线/5月线/MACD红柱；1 小时本地缓存，手动「刷新」强制拉取。 */
+   20日线/5日线/5月线/MACD红柱；1 小时本地缓存（localStorage，刷新/重开不重拉），
+   失败 5 分钟起指数退避；手动「刷新」强制拉取。 */
 function mkCode(k){ return mktPrefix(k)+k; }
 var emDeadUntil=0;   /* 东财连败标记：10 分钟内改腾讯优先，东财任一路成功即复位 */
 function fetchKlineEM(bare,klt,n){
@@ -593,11 +594,16 @@ function fetchKlineTx(full,period,n){
       if(s.parentNode) s.parentNode.removeChild(s);
     }
     var timer=setTimeout(function(){ cleanup(); reject(new Error("kline timeout")); },12000);
-    window[cb]=function(j){
+    /* ifzq 的 _var= 返回「变量名=数据」直接赋值，不走回调函数——
+       挂函数会被数据对象覆盖、永远等不到调用；正确姿势是占位后等 onload 读变量 */
+    window[cb]=0;
+    s.onload=function(){
+      var d=window[cb];
       cleanup();
-      var d=j&&j.data&&j.data[full];
+      if(!d||d===0){ reject(new Error("kline empty")); return; }
       /* 只认前复权键：缺失按失败处理（走重试），不静默回落不复权数据 */
-      var arr=d&&d[period==="day"?"qfqday":"qfqmonth"];
+      var dd=d&&d.data&&d.data[full];
+      var arr=dd&&dd[period==="day"?"qfqday":"qfqmonth"];
       resolve((arr&&arr.length)?arr:null);
     };
     s.onerror=function(){ cleanup(); reject(new Error("kline load error")); };
@@ -639,8 +645,8 @@ function macdRed(closes){ /* MACD柱 = DIF−DEA > 0 即红柱 */
   }
   return dif>dea;
 }
-var maBusy=false, maForcePending=false, maMissRounds=0, MA_TTL=3600000, MA_GAP=300, MA_TRIP=3;
-/* 在途标志 / force 挂起 / 连续缺数轮数 / 缓存新鲜期 1 小时 / 串行间隔ms / 熔断阈值（连续全源失败只数） */
+var maBusy=false, maForcePending=false, maMissRounds=0, MA_TTL=3600000, MA_CONC=4, MA_TRIP=3;
+/* 在途标志 / force 挂起 / 连续缺数轮数 / 缓存新鲜期 1 小时 / 并发上限 / 熔断阈值（连续全源失败只数） */
 function maBackoff(){ return Math.min(300000*Math.pow(2,maMissRounds),3600000); }
                               /* 失败重拉间隔：5 分钟起指数加长，封顶 1 小时——高频重试会惹毛接口风控 */
 function maSay(t){ var el=document.getElementById("maStatus"); if(el) el.textContent=t; }
@@ -657,7 +663,7 @@ function loadKlines(force){
   });
   if(!queue.length) return;   /* 全部命中缓存或退避中：无事可做 */
   maBusy=true;
-  var qi=0, doneN=0, okN=0, consecFail=0, tripped=false;
+  var qi=0, active=0, pend=queue.length, doneN=0, okN=0, consecFail=0, tripped=false;
   function finishRound(){
     maBusy=false;
     lsSet(MA_KEY,state.ma); renderAll();
@@ -668,11 +674,7 @@ function loadKlines(force){
     if(maForcePending){ maForcePending=false; loadKlines(true); }
   }
   function rot3(a){ return [a[2],a[0],a[1]]; }   /* [东财,东财J,腾讯]→[腾讯,东财,东财J]：东财连败时腾讯优先 */
-  function next(){
-    if(qi>=queue.length){ finishRound(); return; }
-    var x=queue[qi++];
-    state.maLoading[x.k]=true;
-    maSay("K线 "+doneN+"/"+queue.length+"…");
+  function launch(x){
     var bare=x.k, full=mkCode(x.k);
     function emDay(){ return fetchKlineEM(bare,101,60); }
     function emJDay(){ return fetchKlineEMJ(bare,101,60); }
@@ -695,20 +697,33 @@ function loadKlines(force){
     }catch(e){ chain=Promise.reject(e); }   /* 建链同步异常也走统一记账，不卡计数 */
     chain.catch(function(){ state.ma[x.k]={ ts:0, tryAt:now }; })
          .then(function(){
-           delete state.maLoading[x.k];
-           doneN++;
+           active--;
            var good=state.ma[x.k]&&state.ma[x.k].ts>0;
-           if(good){ okN++; consecFail=0; } else consecFail++;
-           if(consecFail>=MA_TRIP){   /* 熔断：连续 3 只全源失败→源层大概率整体不通，中止本轮 */
-             for(;qi<queue.length;qi++){ delete state.maLoading[queue[qi].k]; }
-             tripped=true;
-             finishRound();
-             return;
-           }
-           if(qi<queue.length) setTimeout(next,MA_GAP); else finishRound();   /* 串行+间隔，绝不并发 */
+           settleOne(good,x);
          });
   }
-  next();
+  function settleOne(good,x){
+    delete state.maLoading[x.k];
+    doneN++;
+    if(good){ okN++; consecFail=0; } else consecFail++;
+    maSay("K线 "+doneN+"/"+queue.length+"…");
+    if(!tripped&&consecFail>=MA_TRIP){   /* 熔断：连续 3 只全源失败→源层大概率整体不通 */
+      tripped=true;
+      pend=active+1;                     /* 未起跑的全部跳过，只等在途的几只收尾 */
+      for(;qi<queue.length;qi++){ delete state.maLoading[queue[qi].k]; }
+    }
+    if(--pend===0){ finishRound(); return; }
+    if(!tripped) pump();
+  }
+  function pump(){   /* 并发池：同时最多 MA_CONC 只在途 */
+    while(active<MA_CONC&&qi<queue.length&&!tripped){
+      var x=queue[qi++]; active++;
+      state.maLoading[x.k]=true;
+      launch(x);
+    }
+  }
+  maSay("K线 0/"+queue.length+"…");
+  pump();
 }
 
 /* ================= 分红反推价位阶梯 =================
