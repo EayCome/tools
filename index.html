@@ -277,6 +277,7 @@ footer{
     <div class="meta">
       <span class="src" id="srcBadge">待加载</span>
       <span id="statusLine"><span class="dot wait"></span>—</span>
+      <span class="muted" id="maStatus"></span>
       <button class="btn" id="btnRefresh" type="button">刷新</button>
       <button class="btn" id="btnAuto" aria-pressed="true" type="button">自动刷新</button>
     </div>
@@ -527,10 +528,12 @@ function fail(){
 }
 
 /* ================= K线技术层 =================
-   主源：东财 push2his（CORS 全开，file:// 与站点均可直连；fqt=1 前复权）。
-   备源：腾讯 ifzq 的 _var= 回调（JSONP），主源为空或失败才走。
+   串行逐只拉取：一次只发一路请求，只与上一只间隔 300ms。
+   每股三路源依次兜底（均为前复权）：东财 fetch → 东财 cb= JSONP → 腾讯 _var= JSONP。
+   东财连败则 10 分钟内改腾讯优先，东财任一路成功即自动复位；连续 3 只全源失败即熔断本轮。
    20日线/5日线/5月线/MACD红柱；1 小时本地缓存，手动「刷新」强制拉取。 */
 function mkCode(k){ return mktPrefix(k)+k; }
+var emDeadUntil=0;   /* 东财连败标记：10 分钟内改腾讯优先，东财任一路成功即复位 */
 function fetchKlineEM(bare,klt,n){
   var url="https://push2his.eastmoney.com/api/qt/stock/kline/get?secid="+secid(bare)
         +"&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56"
@@ -539,14 +542,43 @@ function fetchKlineEM(bare,klt,n){
     var ctrl=window.AbortController?new AbortController():null;
     var timer=ctrl?setTimeout(function(){ try{ ctrl.abort(); }catch(e){} },12000):null;
     function fin(){ if(timer){ clearTimeout(timer); timer=null; } }   /* 结算即撤，不掐慢读 */
-    fetch(url,ctrl?{signal:ctrl.signal}:null).then(function(res){
+    var opt={referrerPolicy:"no-referrer"};   /* 不带 Referer：少一个风控变量 */
+    if(ctrl) opt.signal=ctrl.signal;
+    fetch(url,opt).then(function(res){
       if(!res.ok) throw new Error("kline http "+res.status);
       return res.json();
     }).then(function(j){
       fin();
       var ks=j&&j.data&&j.data.klines;
-      resolve((ks&&ks.length)?ks:null);
-    },function(err){ fin(); reject(err); });
+      if(ks&&ks.length){ emDeadUntil=0; resolve(ks); } else resolve(null);
+    },function(err){ fin(); emDeadUntil=Date.now()+600000; reject(err); });
+  });
+}
+var emSeq=0;
+function fetchKlineEMJ(bare,klt,n){   /* 东财 JSONP：脚本标签不发 Origin，再加 no-referrer 连 Referer 也没有 */
+  var cb="kem_"+(emSeq++);
+  var url="https://push2his.eastmoney.com/api/qt/stock/kline/get?secid="+secid(bare)
+        +"&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56"
+        +"&klt="+klt+"&fqt=1&lmt="+n+"&end=20500101&cb="+cb;
+  return new Promise(function(resolve,reject){
+    var s=document.createElement("script");
+    var done=false;
+    function cleanup(){
+      if(done) return; done=true;
+      clearTimeout(timer);
+      try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
+      if(s.parentNode) s.parentNode.removeChild(s);
+    }
+    var timer=setTimeout(function(){ cleanup(); reject(new Error("kline timeout")); },8000);
+    window[cb]=function(j){
+      cleanup();
+      var ks=j&&j.data&&j.data.klines;
+      if(ks&&ks.length){ emDeadUntil=0; resolve(ks); } else resolve(null);
+    };
+    s.onerror=function(){ cleanup(); emDeadUntil=Date.now()+600000; reject(new Error("kline load error")); };
+    s.src=url;
+    s.setAttribute("referrerpolicy","no-referrer");
+    document.head.appendChild(s);
   });
 }
 function fetchKlineTx(full,period,n){
@@ -570,13 +602,18 @@ function fetchKlineTx(full,period,n){
     };
     s.onerror=function(){ cleanup(); reject(new Error("kline load error")); };
     s.src="https://ifzq.gtimg.cn/appstock/app/fqkline/get?param="+full+","+period+",,,"+n+",qfq&_var="+cb;
+    s.setAttribute("referrerpolicy","no-referrer");
     document.head.appendChild(s);
   });
 }
-/* 主源结果为空或抛错时转备源 */
-function emThenTx(p,txFn){
-  return p.then(function(r){ return (r&&r.length)?r:txFn(); },
-               function(){ return txFn(); });
+/* 依次尝试各源：前一个为空或失败自动换下一个，全空返回 null */
+function trySrcs(thunks){
+  function at(i){
+    if(i>=thunks.length) return Promise.resolve(null);
+    return thunks[i]().then(function(r){ return (r&&r.length)?r:at(i+1); },
+                           function(){ return at(i+1); });
+  }
+  return at(0);
 }
 /* 收盘价：东财为 CSV 串「日期,开,收,高,低,量」，腾讯为数组 [日期,开,收,…] */
 function closeOf(b){ return num(typeof b==="string"?b.split(",")[2]:b[2]); }
@@ -602,10 +639,11 @@ function macdRed(closes){ /* MACD柱 = DIF−DEA > 0 即红柱 */
   }
   return dif>dea;
 }
-var maBusy=false, maForcePending=false, maMissRounds=0, MA_TTL=3600000, MA_CONC=6;
-/* 在途标志 / force 挂起 / 连续缺数轮数 / 缓存新鲜期 1 小时 / 并发上限 */
+var maBusy=false, maForcePending=false, maMissRounds=0, MA_TTL=3600000, MA_GAP=300, MA_TRIP=3;
+/* 在途标志 / force 挂起 / 连续缺数轮数 / 缓存新鲜期 1 小时 / 串行间隔ms / 熔断阈值（连续全源失败只数） */
 function maBackoff(){ return Math.min(300000*Math.pow(2,maMissRounds),3600000); }
                               /* 失败重拉间隔：5 分钟起指数加长，封顶 1 小时——高频重试会惹毛接口风控 */
+function maSay(t){ var el=document.getElementById("maStatus"); if(el) el.textContent=t; }
 function loadKlines(force){
   if(maBusy){ if(force) maForcePending=true; return; }   /* force 不静默丢弃，本轮结束自动补跑 */
   var now=Date.now(), queue=[];
@@ -619,44 +657,58 @@ function loadKlines(force){
   });
   if(!queue.length) return;   /* 全部命中缓存或退避中：无事可做 */
   maBusy=true;
-  var qi=0, active=0, pend=queue.length;
+  var qi=0, doneN=0, okN=0, consecFail=0, tripped=false;
   function finishRound(){
     maBusy=false;
     lsSet(MA_KEY,state.ma); renderAll();
     var m=0; DATA.forEach(function(x){ var c=state.ma[x.k]; if(!c||!c.ts) m++; });
     maMissRounds=m>0?maMissRounds+1:0;
+    maSay(tripped?"K线源连不上，已暂停——点「刷新」可重试"
+                 :(m>0?"K线 "+okN+"/"+queue.length+"（缺 "+m+"）":""));
     if(maForcePending){ maForcePending=false; loadKlines(true); }
   }
-  function settleOne(){
-    active--;
-    if(--pend===0) finishRound();
-    pump();
-  }
-  function pump(){   /* 并发池：同时最多 MA_CONC 条链，替代一次性全量起跑 */
-    while(active<MA_CONC&&qi<queue.length){
-      var x=queue[qi++]; active++;
-      state.maLoading[x.k]=true;
-      (function(x){
-        var bare=x.k, full=mkCode(x.k);
-        var chain;
-        try{
-          chain=emThenTx(fetchKlineEM(bare,101,60),function(){ return fetchKlineTx(full,"day",60); })
-            .then(function(day){
-              return emThenTx(fetchKlineEM(bare,103,10),function(){ return fetchKlineTx(full,"month",10); })
-                .then(function(mon){
-                  var dc=closesOf(day), mc=closesOf(mon);
-                  /* 任一周期为空=失败：ts:0 + tryAt 记账进退避；成功记 MA_TTL */
-                  state.ma[x.k]={ ma20:avgLast(dc,20), ma5:avgLast(dc,5), ma5m:avgLast(mc,5),
-                                  macd:macdRed(dc), ts:(dc.length>0&&mc.length>0)?now:0, tryAt:now };
-                });
+  function rot3(a){ return [a[2],a[0],a[1]]; }   /* [东财,东财J,腾讯]→[腾讯,东财,东财J]：东财连败时腾讯优先 */
+  function next(){
+    if(qi>=queue.length){ finishRound(); return; }
+    var x=queue[qi++];
+    state.maLoading[x.k]=true;
+    maSay("K线 "+doneN+"/"+queue.length+"…");
+    var bare=x.k, full=mkCode(x.k);
+    function emDay(){ return fetchKlineEM(bare,101,60); }
+    function emJDay(){ return fetchKlineEMJ(bare,101,60); }
+    function txDay(){ return fetchKlineTx(full,"day",60); }
+    function emMon(){ return fetchKlineEM(bare,103,10); }
+    function emJMon(){ return fetchKlineEMJ(bare,103,10); }
+    function txMon(){ return fetchKlineTx(full,"month",10); }
+    var chain;
+    try{
+      chain=trySrcs(Date.now()<emDeadUntil?rot3([emDay,emJDay,txDay]):[emDay,emJDay,txDay])
+        .then(function(day){
+          return trySrcs(Date.now()<emDeadUntil?rot3([emMon,emJMon,txMon]):[emMon,emJMon,txMon])
+            .then(function(mon){
+              var dc=closesOf(day), mc=closesOf(mon);
+              /* 任一周期为空=失败：ts:0 + tryAt 记账进退避；成功记 MA_TTL */
+              state.ma[x.k]={ ma20:avgLast(dc,20), ma5:avgLast(dc,5), ma5m:avgLast(mc,5),
+                              macd:macdRed(dc), ts:(dc.length>0&&mc.length>0)?now:0, tryAt:now };
             });
-        }catch(e){ chain=Promise.reject(e); }   /* 建链同步异常也走统一记账，不卡计数 */
-        chain.catch(function(){ state.ma[x.k]={ ts:0, tryAt:now }; })
-             .then(function(){ delete state.maLoading[x.k]; settleOne(); });
-      })(x);
-    }
+        });
+    }catch(e){ chain=Promise.reject(e); }   /* 建链同步异常也走统一记账，不卡计数 */
+    chain.catch(function(){ state.ma[x.k]={ ts:0, tryAt:now }; })
+         .then(function(){
+           delete state.maLoading[x.k];
+           doneN++;
+           var good=state.ma[x.k]&&state.ma[x.k].ts>0;
+           if(good){ okN++; consecFail=0; } else consecFail++;
+           if(consecFail>=MA_TRIP){   /* 熔断：连续 3 只全源失败→源层大概率整体不通，中止本轮 */
+             for(;qi<queue.length;qi++){ delete state.maLoading[queue[qi].k]; }
+             tripped=true;
+             finishRound();
+             return;
+           }
+           if(qi<queue.length) setTimeout(next,MA_GAP); else finishRound();   /* 串行+间隔，绝不并发 */
+         });
   }
-  pump();
+  next();
 }
 
 /* ================= 分红反推价位阶梯 =================
