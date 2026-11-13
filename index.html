@@ -114,6 +114,8 @@ td .sub{display:block; font-size:12px; color:var(--ink3); line-height:1.45}
 td .sub.up{color:var(--rust)}
 td .sub.down{color:var(--jade)}
 td .sub.flat{color:var(--ink3)}
+td .sub.near-buy{color:var(--brass)}
+td .sub.hit-buy{color:var(--jade); font-weight:600}
 td.name .sub{font-family:var(--num)}
 tbody tr:hover{background:var(--card)}
 
@@ -278,6 +280,7 @@ footer{
       <span class="src" id="srcBadge">待加载</span>
       <span id="statusLine"><span class="dot wait"></span>—</span>
       <span class="muted" id="maStatus"></span>
+      <button class="btn" id="btnAlert" aria-pressed="false" type="button" title="接近或到达买点时：桌面通知+提示音；开着时页面挂后台也每分钟盯一次">提醒 关</button>
       <button class="btn" id="btnRefresh" type="button">刷新</button>
       <button class="btn" id="btnAuto" aria-pressed="true" type="button">自动刷新</button>
     </div>
@@ -348,6 +351,7 @@ footer{
   20日线、5日线、5月线、MACD 来自腾讯日K/月K（前复权）；贴线=现价距均线 ±0.6% 内（5月线 ±1.5%）。<br>
   技术买点=估值(股息率≥档位)+技术(跌破20日线或贴5月线)+止跌(站回5日线)三样齐为次核心，再加 MACD 红柱为核心。<br>
   股息率一律按「每股分红 ÷ 现价」计算，与目标成本口径一致；价位阶梯：5%线=买点、5~5.5%买入区、5.5%线=满仓、6%线=融资区，4.5~5%观望区、4%线以上减仓、3%线以上清仓；操作建议按目标成本位推算，未计费用税费；拿不住时（跌破5日线或连涨七八个点）按此思路算底仓。<br>
+  买点提醒：现价距买入线（每股分红÷档位）≤3% 为「接近」、跌破为「到点」，点「提醒」授权后桌面通知+提示音，只在状态翻变时响一次；页面需保持开着（挂后台每分钟盯一次）。<br>
   持仓与缓存只保存在本机浏览器（localStorage），不上传、不联网传输；不构成任何投资建议。自选列表在文件内 <code>DATA</code> 处维护。
 </footer>
 
@@ -513,6 +517,7 @@ function ok(rows,src){
   errBanner.classList.add("hide");
   setStatus("ok","数据时间 "+(ts?hhmmss(ts*1000):hhmmss(state.gotAt))+(src==="eastmoney"?" · 东财备用":""));
   renderAll();
+  alertCheck();
   loadKlines(false);
 }
 function fail(){
@@ -750,6 +755,51 @@ function zoneOf(dps,P,tiers){
 }
 /*==== ZONE-END ====*/
 
+/* ================= 买点提醒 =================
+   买入线 = 每股分红÷档位，随各股档位走。
+   接近=现价距买入线 ≤ALERT_NEAR(3%)；到点=跌破买入线。near→hit 各算一次状态翻变，
+   状态记在 localStorage，翻变才提醒（刷新/重开页面不重复响）。
+   桌面通知点「提醒」按钮授权（https 页面可用；本地 file:// 部分浏览器拿不到权限）；
+   提醒开着时页面挂后台也不停拉（降为 1 分钟一次，与浏览器后台限流同频）。 */
+var ALERT_KEY="gxpanel_alert_v1", ALERT_NEAR=0.03;
+var ALERTS=(function(r){ return (r&&typeof r==="object"&&!Array.isArray(r))?r:{on:false,seen:{}}; })(lsGet(ALERT_KEY));
+function alertsArmed(){ return !!(ALERTS.on&&("Notification" in window)&&Notification.permission==="granted"); }
+function beep(){
+  if(beep.t&&Date.now()-beep.t<1500) return;   /* 连环到点只响一声，不叠音 */
+  beep.t=Date.now();
+  try{
+    beep.ctx=beep.ctx||new (window.AudioContext||window.webkitAudioContext)();
+    var c=beep.ctx; if(c.state==="suspended") c.resume();
+    var o=c.createOscillator(), g=c.createGain(), t=c.currentTime;
+    o.frequency.value=880;
+    g.gain.setValueAtTime(0.06,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.25);
+  }catch(e){}
+}
+function fireAlert(x,P,kind){
+  var bl=x.dps/x.tier, d=Math.abs(P-bl)/bl*100, y=x.dps/P*100;
+  var body=(kind==="hit"
+      ?"现价 "+P.toFixed(2)+" 已到买入线 "+bl.toFixed(2)
+      :"现价 "+P.toFixed(2)+"，距买入线 "+bl.toFixed(2)+" 差 "+d.toFixed(1)+"%")
+    +"，股息率 "+y.toFixed(2)+"%";
+  try{ if(alertsArmed()) new Notification((kind==="hit"?"到买点 · ":"接近买点 · ")+x.name,{body:body,tag:x.k}); }catch(e){}
+  beep();
+}
+function alertCheck(){
+  if(!alertsArmed()||!state.rows) return;
+  var dirty=false;
+  DATA.forEach(function(x){
+    var q=state.rows[x.k], P=q?q.price:null;
+    var bl=x.dps/x.tier, cur="";
+    if(P!=null&&P>0) cur=P<=bl?"hit":(P<=bl*(1+ALERT_NEAR)?"near":"");
+    if(cur!==ALERTS.seen[x.k]){
+      if(cur) fireAlert(x,P,cur);
+      ALERTS.seen[x.k]=cur; dirty=true;
+    }
+  });
+  if(dirty) lsSet(ALERT_KEY,ALERTS);
+}
+
 /* ================= 渲染 ================= */
 function setStatus(cls,text){
   var el=$("statusLine");
@@ -762,6 +812,7 @@ function rowsSorted(){
   var arr=DATA.map(function(x){
     var q=state.rows&&state.rows[x.k];
     var price=q?q.price:null;
+    var bl=x.dps/x.tier;   /* 买入线（每股分红÷档位）：技术买点与买点提醒共用 */
     var tgt=x.dps/K;
     var h=state.holdings[x.k];
     var sig=advise(x.dps, h?h.q:null, h?h.c:null, price);
@@ -772,7 +823,9 @@ function rowsSorted(){
       code:x.k,name:(q&&q.name)||x.name,dps:x.dps,tgt:tgt,
       price:price,pct:q?q.pct:null,pb:q?q.pb:null,
       yld:(price!=null)?x.dps/price*100:null,   /* 面板股息率一律按 dps/现价 */
-      tier:x.tier, buyLine:x.dps/x.tier,
+      tier:x.tier, buyLine:bl,
+      near:(price!=null&&price>0&&price>bl&&price<=bl*(1+ALERT_NEAR))?(price-bl)/bl*100:null,
+      hit:(price!=null&&price>0&&price<=bl),
       l6:x.dps/tiers[0], l55:x.dps/tiers[1],
       l5:x.dps/tiers[2], l45:x.dps/tiers[3], l4:x.dps/tiers[4], l3:x.dps/tiers[5],
       zone:zn, zoneP:zn?zn.meta.ord:9,
@@ -797,10 +850,11 @@ function rowsSorted(){
 function renderAll(){ renderStats(); renderTable(); renderPortfolio(); renderSector(); }
 
 function renderStats(){
-  var arr=rowsSorted(), up=0,down=0,flat=0, ys=[],bad=0;
+  var arr=rowsSorted(), up=0,down=0,flat=0, ys=[],bad=0, nNear=0,nHit=0;
   var sigN={trim:0,buy:0,hold:0,wait:0};
   arr.forEach(function(r){
     sigN[r.sig.type]++;
+    if(r.hit)nHit++; else if(r.near!=null)nNear++;
     if(r.pct==null){bad++;return;}
     if(r.pct>0)up++; else if(r.pct<0)down++; else flat++;
     if(r.yld!=null)ys.push(r.yld);
@@ -814,6 +868,8 @@ function renderStats(){
     +'<span class="stat">平盘 <b>'+flat+'</b></span>'
     +'<span class="stat">中位数股息率 <b>'+(med==null?"—":med.toFixed(2)+"%")+'</b></span>'
     +'<span class="stat">股息率≥6% <b>'+ge6+'</b> 只</span>'
+    +(nHit?'<span class="stat" style="border-color:var(--jade);color:var(--jade)">已到买点 <b>'+nHit+'</b></span>':'')
+    +(nNear?'<span class="stat" style="border-color:var(--brass);color:var(--brass)">接近买点 <b>'+nNear+'</b></span>':'')
     +(sigN.trim?'<span class="stat" style="border-color:var(--rust);color:var(--rust)">建议减仓 <b>'+sigN.trim+'</b></span>':'')
     +(sigN.buy?'<span class="stat" style="border-color:var(--jade);color:var(--jade)">建议买入/补仓 <b>'+sigN.buy+'</b></span>':'')
     +(sigN.hold?'<span class="stat">持有 <b>'+sigN.hold+'</b></span>':'')
@@ -864,7 +920,9 @@ function renderTable(){
     tr.innerHTML=
       '<td class="name"><b>'+esc(r.name)+'</b><span class="sub">'+esc(r.code)+'</span></td>'
       +'<td class="n">'+(r.price==null?"—":'<b>'+fmt(r.price,2)+'</b>')
-        +(r.pct==null?"":'<span class="sub '+pctCls(r.pct)+'">'+(r.pct>0?"+":"")+r.pct.toFixed(2)+'%</span>')+'</td>'
+        +(r.pct==null?"":'<span class="sub '+pctCls(r.pct)+'">'+(r.pct>0?"+":"")+r.pct.toFixed(2)+'%</span>')
+        +(r.hit?'<span class="sub hit-buy">已到买点</span>'
+          :(r.near!=null?'<span class="sub near-buy" title="现价距买入线（每股分红÷档位）≤'+(ALERT_NEAR*100).toFixed(0)+'%">距买点 '+r.near.toFixed(1)+'%</span>':''))+'</td>'
       +'<td class="n" title="股息率 = 每股分红 ÷ 现价">'+(r.yld==null?"—":r.yld.toFixed(2)+'%')+'</td>'
       +'<td class="n">'+r.dps.toFixed(4)+'</td>'
       +'<td class="n gsep" title="股息率≥档位时可买入">'+(r.tier*100).toFixed(2)+'%<span class="sub">买入线 '+r.buyLine.toFixed(2)+'</span></td>'
@@ -1232,7 +1290,8 @@ document.querySelectorAll("#colPop input").forEach(function(cb){
 applyCols();
 
 /* ================= 自动刷新 =================
-  交易日 9:14–15:05 每 30 秒；其余时间每 5 分钟。页面不可见时暂停。 */
+  交易日 9:14–15:05 每 30 秒（提醒开着且页面挂后台时 1 分钟）；其余时间每 5 分钟。
+  页面不可见时暂停拉取，除非买点提醒开着——否则后台无法提醒。 */
 function inSession(){
   var d=new Date();
   var day=d.getDay(); if(day===0||day===6) return false;
@@ -1240,9 +1299,11 @@ function inSession(){
   return m>=554 && m<=905;
 }
 function schedule(){
-  var gap=inSession()?30000:300000;
+  var gap=inSession()?(document.hidden?60000:30000):300000;
   clearTimeout(schedule.t);
-  schedule.t=setTimeout(function(){ if(state.auto&&!document.hidden) load(); },gap);
+  schedule.t=setTimeout(function(){
+    if(state.auto&&(alertsArmed()||!document.hidden)) load();   /* 提醒开着时挂后台也拉，降频1分钟 */
+  },gap);
 }
 document.addEventListener("visibilitychange",function(){
   if(document.hidden){ flushHoldings(); return; }
@@ -1255,6 +1316,27 @@ $("btnAuto").addEventListener("click",function(){
   this.setAttribute("aria-pressed",state.auto?"true":"false");
   if(state.auto){ load(true); }
 });
+
+/* 买点提醒开关：点一下授权并记住，再点关闭；开着时立即扫一轮，已接近的马上报 */
+function refreshAlertBtn(){
+  var b=$("btnAlert"); if(!b) return;
+  var on=alertsArmed();
+  b.setAttribute("aria-pressed",on?"true":"false");
+  b.textContent=on?"提醒 开":"提醒 关";
+}
+$("btnAlert").addEventListener("click",function(){
+  if(!("Notification" in window)){ this.title="此浏览器不支持桌面通知"; return; }
+  if(alertsArmed()){ ALERTS.on=false; lsSet(ALERT_KEY,ALERTS); refreshAlertBtn(); return; }
+  var done=function(){ lsSet(ALERT_KEY,ALERTS); refreshAlertBtn();
+    if(alertsArmed()){ beep(); alertCheck(); } };
+  try{   /* 老浏览器走回调、新浏览器走 Promise，都兜住 */
+    Notification.requestPermission(function(r){ if(r==="granted") ALERTS.on=true; done(); });
+  }catch(e){
+    try{ Notification.requestPermission().then(function(r){ if(r==="granted") ALERTS.on=true; }).then(done,done); }
+    catch(e2){ done(); }
+  }
+});
+refreshAlertBtn();
 
 /* ================= 启动：先渲染缓存，再拉最新 ================= */
 var cached=lsGet(CACHE_KEY);
