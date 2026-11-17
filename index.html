@@ -39,7 +39,11 @@ body{
   font-family:var(--sans); font-size:16px; line-height:1.7;
   -webkit-text-size-adjust:100%;
 }
-.wrap{padding:22px 24px 56px}
+.wrap{
+  height:100vh; height:100dvh;          /* 表区自带纵向滚动，页头/统计条/页脚常驻 */
+  display:flex; flex-direction:column;
+  padding:22px 24px 28px;
+}
 
 header{margin-bottom:14px}
 .hbar{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap}
@@ -88,7 +92,8 @@ h1{
 .port .cell .v small{font-size:12px; font-weight:400; color:var(--ink3); margin-left:2px}
 
 .scroll{
-  overflow-x:auto; -webkit-overflow-scrolling:touch;
+  flex:1 1 auto; min-height:0;          /* 占满剩余高度，行数多时表内滚动，表头吸顶 */
+  overflow:auto; -webkit-overflow-scrolling:touch;
   border:1px solid var(--rule); border-radius:3px;
   scrollbar-width:thin; scrollbar-color:var(--rule) transparent;
 }
@@ -116,6 +121,7 @@ td .sub.down{color:var(--jade)}
 td .sub.flat{color:var(--ink3)}
 td .sub.near-buy{color:var(--brass)}
 td .sub.hit-buy{color:var(--jade); font-weight:600}
+td .sub.kou{font-size:11px; line-height:1.35}   /* 区域列口诀：小字两行，别把列撑宽 */
 td.name .sub{font-family:var(--num)}
 tbody tr:hover{background:var(--card)}
 
@@ -255,12 +261,13 @@ td.c-after,td.c-cash{min-width:128px}
 .zone .pct{font-family:var(--num); margin-left:4px}
 
 footer{
-  margin-top:26px; padding-top:12px; border-top:1px solid var(--rule2);
+  flex:none; max-height:26vh; overflow:auto;
+  margin-top:14px; padding-top:12px; border-top:1px solid var(--rule2);
   color:var(--ink3); font-size:12px; line-height:1.7;
 }
 .hide{display:none}
 @media (max-width:760px){
-  .wrap{padding:16px 12px 40px}
+  .wrap{height:100vh; height:100dvh; padding:16px 12px 24px}
   table{font-size:13.5px; min-width:720px}
   th,td{padding:8px 5px}
   th[data-k]{padding-right:14px}  /* 给排序箭头留位，别压住列名末字 */
@@ -1004,9 +1011,8 @@ function renderTable(){
     var d5d=(r.price>0&&m.ma5>0)?(r.price-m.ma5)/m.ma5*100:null;
     var brk5=(r.price>0&&m.ma5>0&&r.price<m.ma5);
     var pump5=(r.price>0&&m.c5min>0&&(r.price-m.c5min)/m.c5min>=0.07);
-    var kou=(r.price>0&&r.l4>0)
-      ? ((r.price<=r.l4)?"不能丢 · ":"")+(r.price<=r.buyLine?"可买":"不能买")
-        +" · "+(r.price<=r.l4?"不卖":"该减仓") : "";
+    var kouH=(r.price>0&&r.l4>0)?(r.price<=r.l4?"不能丢·不卖":"该减仓"):"";   /* 持有侧口诀 */
+    var kouB=(r.price>0)?(r.price<=r.buyLine?"可买":"不能买"):"";            /* 介入侧口诀 */
     var tr=document.createElement("tr");
     tr.setAttribute("data-code",r.code);
     tr.innerHTML=
@@ -1031,7 +1037,8 @@ function renderTable(){
       +'<td class="n g-ladder" title="每股分红÷4%，现价高于此进入减仓区">'+r.l4.toFixed(2)+'</td>'
       +'<td class="n g-ladder" title="每股分红÷3%，现价高于此进入清仓区">'+r.l3.toFixed(2)+'</td>'
       +'<td>'+(r.zone?'<span class="zone '+r.zone.meta.cls+'" title="股息率 '+(r.yld==null?"—":r.yld.toFixed(2)+'%')+'，按分红反推价位阶梯定区">'+r.zone.meta.label+'</span>':'<span class="muted">—</span>')
-        +(kou?'<span class="sub" title="口诀：4%线内不卖、底仓不能丢；过买入线才可买">'+kou+'</span>':'')+'</td>'
+        +(kouH?'<span class="sub kou'+(kouH==="该减仓"?" up":"")+'" title="持有侧：4%线内不卖、底仓不能丢；过4%线该减仓">'+kouH+'</span>':'')
+        +(kouB?'<span class="sub kou'+(kouB==="可买"?" down":"")+'" title="介入侧：现价过买入线（股息率≥档位）才可买">'+kouB+'</span>':'')+'</td>'
       +'<td class="n gsep g-tech">'+(m.ma20>0?m.ma20.toFixed(2):(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
       +'<td class="n g-tech">'+(d20==null?(mld?'<span class="muted">…</span>':'<span class="muted">—</span>')
           :'<span class="'+(d20>=0?"up":"down")+'">'+(d20>0?"+":"")+d20.toFixed(2)+'%</span>'
