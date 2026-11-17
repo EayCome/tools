@@ -121,7 +121,6 @@ td .sub.down{color:var(--jade)}
 td .sub.flat{color:var(--ink3)}
 td .sub.near-buy{color:var(--brass)}
 td .sub.hit-buy{color:var(--jade); font-weight:600}
-td .sub.kou{font-size:11px; line-height:1.35}   /* 区域列口诀：小字两行，别把列撑宽 */
 td.name .sub{font-family:var(--num)}
 tbody tr:hover{background:var(--card)}
 
@@ -340,6 +339,7 @@ footer{
     <th class="grp g-mkt" colspan="4">市场</th>
     <th class="grp g-ladder gsep" colspan="6">价位梯队</th>
     <th rowspan="2" data-k="zone">当前区域</th>
+    <th class="grp gsep" colspan="2">口诀</th>
     <th class="grp g-tech gsep" colspan="9">技术</th>
     <th class="grp gsep" colspan="2">持仓</th>
     <th rowspan="2" data-k="sig">操作建议</th>
@@ -359,6 +359,8 @@ footer{
     <th class="g-ladder" data-k="l45" title="每股分红÷4.5%，观望区上沿">4.5%线</th>
     <th class="g-ladder" data-k="l4" title="每股分红÷4%，现价高于此进入减仓区">4%线</th>
     <th class="g-ladder" data-k="l3" title="每股分红÷3%，现价高于此进入清仓区">3%线</th>
+    <th class="nosort c-tp" title="4%线内：不卖、底仓不能丢；过4%线：该减仓">持有</th>
+    <th class="nosort c-tp" title="现价过买入线（每股分红÷档位，股息率≥档位）才可买">介入</th>
     <th class="gsep g-tech" data-k="ma20" title="20日收盘均价（腾讯日K·前复权）">20日线</th>
     <th class="g-tech" data-k="d20" title="现价相对20日线距离，正=站上/负=跌破；±0.6%以内=贴线">距20日</th>
     <th class="g-tech" data-k="ma5" title="5日收盘均价；站上=现价高于此">5日线</th>
@@ -384,7 +386,7 @@ footer{
   行情来自腾讯公共接口（东方财富备用），双击本地打开即可自动更新，无需安装任何东西；行情或有延迟。<br>
   20日线、5日线、5月线、MACD 来自腾讯日K/月K（前复权）；贴线=现价距均线 ±0.6% 内（5月线 ±1.5%）。<br>
   技术买点=估值(股息率≥档位)+技术(跌破20日线或贴5月线)+止跌(站回5日线)三样齐为次核心，再加 MACD 红柱为核心。<br>
-  SKDJ买点=超卖金叉(3日内)+柱缩 两条件齐；周SKDJ 为周K慢速随机，K>80=禁加仓；底仓列在跌破5日线或5日涨超7%时提示「守底仓」；区域列下口诀=4%线内「不能丢 · 不卖」、过买入线才「可买」；底仓价6%=每股分红÷6%；PE/市值/换手/量比来自行情接口。<br>
+  SKDJ买点=超卖金叉(3日内)+柱缩 两条件齐；周SKDJ 为周K慢速随机，K>80=禁加仓；底仓列在跌破5日线或5日涨超7%时提示「守底仓」；口诀两列：持有=4%线内「不能丢·不卖」/过4%线「该减仓」，介入=过买入线（股息率≥档位）才「可买」；底仓价6%=每股分红÷6%；PE/市值/换手/量比来自行情接口。<br>
   股息率一律按「每股分红 ÷ 现价」计算，与目标成本口径一致；价位阶梯：5%线=买点、5~5.5%买入区、5.5%线=满仓、6%线=融资区，4.5~5%观望区、4%线以上减仓、3%线以上清仓；操作建议按目标成本位推算，未计费用税费；拿不住时（跌破5日线或连涨七八个点）按此思路算底仓。<br>
   买点提醒：现价距买入线（每股分红÷档位）≤3% 为「接近」、跌破为「到点」，点「提醒」授权后桌面通知+提示音，只在状态翻变时响一次；页面需保持开着（挂后台每分钟盯一次）。<br>
   持仓与缓存只保存在本机浏览器（localStorage），不上传、不联网传输；不构成任何投资建议。自选列表在文件内 <code>DATA</code> 处维护。
@@ -1004,16 +1006,21 @@ function renderTable(){
     var stop=(m.ma5>0&&r.price>0)?(r.price>m.ma5):false;
     if(valOK&&tech&&stop) tp=(m.macd===true)?"core":"sub";
     /* 行长口径：SKDJ买点=超卖金叉(3日内)+柱缩；周SKDJ K>80 禁加仓；
-       跌破5日线或5日涨超7%（拿不住的时刻）提示守底仓；区域列下挂「不能丢·不卖·(不)能买」口诀 */
+       跌破5日线或5日涨超7%（拿不住的时刻）提示守底仓；持有/介入两列口诀 */
     var gxm=!!(m.skgOv&&m.skgAgo>=0&&m.skgAgo<=3);
     var zs=(r.hist!=null&&m.histPrev!=null&&Math.abs(r.hist)<Math.abs(m.histPrev));
     var d5d=(r.price>0&&m.ma5>0)?(r.price-m.ma5)/m.ma5*100:null;
     var brk5=(r.price>0&&m.ma5>0&&r.price<m.ma5);
     var pump5=(r.price>0&&m.c5min>0&&(r.price-m.c5min)/m.c5min>=0.07);
-    var kou="",kouCls="";   /* 区域口诀一行：不卖·(不)能买 / 该减仓；「不能丢」收进悬停提示 */
+    var kouH="",kouHC="sig-hold";   /* 持有口诀：4%线内「不能丢·不卖」，过4%线「该减仓」 */
+    var kouB="",kouBC="sig-wait";   /* 介入口诀：过买入线（股息率≥档位）「可买」，否则「不能买」 */
     if(r.price>0&&r.l4>0){
-      if(r.price>r.l4){ kou="该减仓"; kouCls="up"; }
-      else{ kou="不卖 · "+(r.price<=r.buyLine?"可买":"不能买"); kouCls=(r.price<=r.buyLine)?"down":""; }
+      if(r.price>r.l4){ kouH="该减仓"; kouHC="sig-trim"; }
+      else kouH="不能丢 · 不卖";
+    }
+    if(r.price>0){
+      if(r.price<=r.buyLine){ kouB="可买"; kouBC="sig-buy"; }
+      else kouB="不能买";
     }
     var tr=document.createElement("tr");
     tr.setAttribute("data-code",r.code);
@@ -1038,8 +1045,9 @@ function renderTable(){
       +'<td class="n g-ladder" title="每股分红÷4.5%，观望区上沿">'+r.l45.toFixed(2)+'</td>'
       +'<td class="n g-ladder" title="每股分红÷4%，现价高于此进入减仓区">'+r.l4.toFixed(2)+'</td>'
       +'<td class="n g-ladder" title="每股分红÷3%，现价高于此进入清仓区">'+r.l3.toFixed(2)+'</td>'
-      +'<td>'+(r.zone?'<span class="zone '+r.zone.meta.cls+'" title="股息率 '+(r.yld==null?"—":r.yld.toFixed(2)+'%')+'，按分红反推价位阶梯定区">'+r.zone.meta.label+'</span>':'<span class="muted">—</span>')
-        +(kou?'<span class="sub kou '+kouCls+'" title="4%线内：不卖、底仓不能丢；过4%线：该减仓；过买入线（股息率≥档位）才可买">'+kou+'</span>':'')+'</td>'
+      +'<td>'+(r.zone?'<span class="zone '+r.zone.meta.cls+'" title="股息率 '+(r.yld==null?"—":r.yld.toFixed(2)+'%')+'，按分红反推价位阶梯定区">'+r.zone.meta.label+'</span>':'<span class="muted">—</span>')+'</td>'
+      +'<td class="c-tp">'+(kouH?'<span class="sig '+kouHC+'" title="4%线内：不卖、底仓不能丢；过4%线：该减仓">'+kouH+'</span>':'<span class="muted">—</span>')+'</td>'
+      +'<td class="c-tp">'+(kouB?'<span class="sig '+kouBC+'" title="现价过买入线（每股分红÷档位，股息率≥档位）才可买">'+kouB+'</span>':'<span class="muted">—</span>')+'</td>'
       +'<td class="n gsep g-tech">'+(m.ma20>0?m.ma20.toFixed(2):(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
       +'<td class="n g-tech">'+(d20==null?(mld?'<span class="muted">…</span>':'<span class="muted">—</span>')
           :'<span class="'+(d20>=0?"up":"down")+'">'+(d20>0?"+":"")+d20.toFixed(2)+'%</span>'
@@ -1083,7 +1091,7 @@ function renderTable(){
     frag.appendChild(tr);
   });
   tbody.innerHTML=""; tbody.appendChild(frag);
-  if(!shown) tbody.innerHTML='<tr><td class="dimmed" colspan="33">没有匹配「'+esc(state.q)+'」的标的</td></tr>';
+  if(!shown) tbody.innerHTML='<tr><td class="dimmed" colspan="35">没有匹配「'+esc(state.q)+'」的标的</td></tr>';
   document.querySelectorAll("#tbody tr").forEach(updateRow);
   if(state.flashCode){   /* 板块卡片点来的高亮：表格重建后重放一次 */
     var fr=document.querySelector('#tbody tr[data-code="'+state.flashCode+'"]');
@@ -1389,7 +1397,7 @@ function applyCols(reveal){
   var nOpen=0; ["est","ladder","tech","act","mkt"].forEach(function(g){ if(colState[g]) nOpen++; });
   var cpCount=$("cpCount"); if(cpCount) cpCount.textContent="已开 "+nOpen+"/5";
   lsSet(COLS_KEY,colState);
-  /* 勾选启用某组后，把该组第一列滚进视口——33列表格新列常在屏幕右侧外，不滚会以为没生效 */
+  /* 勾选启用某组后，把该组第一列滚进视口——35列表格新列常在屏幕右侧外，不滚会以为没生效 */
   if(reveal) scrollSoft(document.querySelector(".scroll th.g-"+reveal),{inline:"center",block:"nearest"});
   syncHdr(); placeHdr();   /* 开关列组后列宽变化，克隆表头重建 */
 }
