@@ -88,14 +88,9 @@ h1{
 .port .cell .v small{font-size:12px; font-weight:400; color:var(--ink3); margin-left:2px}
 
 .scroll{
-  overflow-x:auto; -webkit-overflow-scrolling:touch;   /* 横向滚动；纵向吸顶交给悬浮表头 */
+  overflow-x:auto; -webkit-overflow-scrolling:touch;
   border:1px solid var(--rule); border-radius:3px;
   scrollbar-width:thin; scrollbar-color:var(--rule) transparent;
-}
-.hdrfix{
-  position:fixed; top:0; z-index:40; overflow:hidden; pointer-events:none;
-  background:var(--paper); border-bottom:1px solid var(--rule);
-  box-shadow:0 3px 10px rgba(0,0,0,.10);
 }
 .scroll::-webkit-scrollbar{width:10px; height:10px}
 .scroll::-webkit-scrollbar-thumb{background:var(--rule); border-radius:5px}
@@ -1137,7 +1132,6 @@ function renderTable(){
       }catch(e){}
     }
   }
-  syncHdr(); placeHdr();   /* 行集变化列宽随之变，克隆表头重建对齐 */
 }
 
 /* 一行的计算结果：建议徽章 + 操作后 + 套现/投入（股数成本来自行内输入，现价来自行情） */
@@ -1325,7 +1319,6 @@ function switchTab(t){
   $("viewSector").classList.toggle("hide",t!=="sector");
   $("tabGrid").setAttribute("aria-pressed",t==="grid"?"true":"false");
   $("tabSector").setAttribute("aria-pressed",t==="sector"?"true":"false");
-  placeHdr(); syncHdr(); placeHdr();   /* 切回总览：表区从隐藏变可见，重测列宽再决定显隐 */
 }
 $("tabGrid").addEventListener("click",function(){ switchTab("grid"); });
 $("tabSector").addEventListener("click",function(){ switchTab("sector"); });
@@ -1419,7 +1412,6 @@ function applyCols(reveal){
   lsSet(COLS_KEY,colState);
   /* 勾选启用某组后，把该组第一列滚进视口——35列表格新列常在屏幕右侧外，不滚会以为没生效 */
   if(reveal) scrollSoft(document.querySelector(".scroll th.g-"+reveal),{inline:"center",block:"nearest"});
-  syncHdr(); placeHdr();   /* 开关列组后列宽变化，克隆表头重建 */
 }
 $("btnCols").addEventListener("click",function(e){
   e.stopPropagation();
@@ -1448,53 +1440,6 @@ document.querySelectorAll("#colPop input").forEach(function(cb){
   });
 });
 applyCols();
-
-/* ================= 悬浮表头 =================
-   页面保持自然滚动、高度不锁死。往下滚过表格顶边时，把表头克隆成 fixed 层吸在视口顶；
-   横向滚动与表区 scrollLeft 联动（overflow:hidden 可程序滚动，克隆里的吸左列照样生效）。
-   列宽每次重渲染/开关列组/缩放窗口后重新同步；滚出表格底部即隐藏。 */
-var hdrBox;   /* 不带初值：applyCols 首跑时 syncHdr 可能先建层，避免再被声明行覆盖成 null */
-function syncHdr(){
-  var t=$("tbl"), sb=$("viewGrid");
-  if(!t||!sb||!t.tHead) return;
-  if(!sb.offsetWidth) return;   /* 表区隐藏（板块页/初始化前）时跳过，保留旧克隆 */
-  var row=t.querySelector("tbody tr[data-code]");   /* 取首条数据行实测列宽 */
-  if(!row) return;
-  if(!hdrBox){
-    hdrBox=document.createElement("div");
-    hdrBox.className="hdrfix hide";
-    document.body.appendChild(hdrBox);
-  }
-  /* 列宽锁进 colgroup：正文+表头共同布局出的最终列宽，跨列组单元格不再与列宽互相打架 */
-  var cg=document.createElement("colgroup");
-  for(var i=0;i<row.cells.length;i++){
-    var c=document.createElement("col");
-    c.style.width=row.cells[i].offsetWidth+"px";
-    cg.appendChild(c);
-  }
-  var ct=document.createElement("table");
-  ct.style.width=t.offsetWidth+"px";
-  ct.appendChild(cg);
-  ct.appendChild(t.tHead.cloneNode(true));
-  hdrBox.innerHTML=""; hdrBox.appendChild(ct);
-}
-function placeHdr(){
-  if(!hdrBox) return;
-  var sb=$("viewGrid"), t=$("tbl");
-  if(!sb||!t) return;
-  var r=sb.getBoundingClientRect(), thH=t.tHead?t.tHead.offsetHeight:0;
-  var show=state.tab==="grid" && r.top<0 && r.bottom>thH+2;
-  hdrBox.classList.toggle("hide",!show);
-  if(show){
-    hdrBox.style.left=r.left+"px";
-    hdrBox.style.width=r.clientWidth+"px";
-    hdrBox.scrollLeft=sb.scrollLeft;
-  }
-}
-window.addEventListener("scroll",placeHdr,{passive:true});
-window.addEventListener("resize",function(){ syncHdr(); placeHdr(); });
-$("viewGrid").addEventListener("scroll",placeHdr,{passive:true});
-if(document.fonts&&document.fonts.ready) document.fonts.ready.then(function(){ syncHdr(); placeHdr(); });
 
 /* ================= 自动刷新 =================
   交易日 9:14–15:05 每 30 秒（提醒开着且页面挂后台时 1 分钟）；其余时间每 5 分钟。
