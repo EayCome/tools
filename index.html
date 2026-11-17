@@ -1305,7 +1305,7 @@ function switchTab(t){
   $("viewSector").classList.toggle("hide",t!=="sector");
   $("tabGrid").setAttribute("aria-pressed",t==="grid"?"true":"false");
   $("tabSector").setAttribute("aria-pressed",t==="sector"?"true":"false");
-  placeHdr();   /* 切回总览时按当前滚动位置决定悬浮表头显隐 */
+  placeHdr(); syncHdr(); placeHdr();   /* 切回总览：表区从隐藏变可见，重测列宽再决定显隐 */
 }
 $("tabGrid").addEventListener("click",function(){ switchTab("grid"); });
 $("tabSector").addEventListener("click",function(){ switchTab("sector"); });
@@ -1436,18 +1436,26 @@ applyCols();
 var hdrBox;   /* 不带初值：applyCols 首跑时 syncHdr 可能先建层，避免再被声明行覆盖成 null */
 function syncHdr(){
   var t=$("tbl"), sb=$("viewGrid");
-  if(!t||!sb) return;
+  if(!t||!sb||!t.tHead) return;
+  if(!sb.offsetWidth) return;   /* 表区隐藏（板块页/初始化前）时跳过，保留旧克隆 */
+  var row=t.querySelector("tbody tr[data-code]");   /* 取首条数据行实测列宽 */
+  if(!row) return;
   if(!hdrBox){
     hdrBox=document.createElement("div");
     hdrBox.className="hdrfix hide";
     document.body.appendChild(hdrBox);
   }
+  /* 列宽锁进 colgroup：正文+表头共同布局出的最终列宽，跨列组单元格不再与列宽互相打架 */
+  var cg=document.createElement("colgroup");
+  for(var i=0;i<row.cells.length;i++){
+    var c=document.createElement("col");
+    c.style.width=row.cells[i].offsetWidth+"px";
+    cg.appendChild(c);
+  }
   var ct=document.createElement("table");
-  ct.appendChild(t.tHead.cloneNode(true));
   ct.style.width=t.offsetWidth+"px";
-  var src=t.tHead.querySelectorAll("th"), dst=ct.querySelectorAll("th");
-  if(src.length===dst.length)
-    src.forEach(function(th,i){ dst[i].style.width=th.offsetWidth+"px"; });
+  ct.appendChild(cg);
+  ct.appendChild(t.tHead.cloneNode(true));
   hdrBox.innerHTML=""; hdrBox.appendChild(ct);
 }
 function placeHdr(){
