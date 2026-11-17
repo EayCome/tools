@@ -343,7 +343,7 @@ footer{
     <th class="grp g-tech gsep" colspan="9">技术</th>
     <th class="grp gsep" colspan="2">持仓</th>
     <th rowspan="2" data-k="sig">操作建议</th>
-    <th rowspan="2" title="跌破5日线或5日涨超7%（拿不住的时刻）提醒守住底仓，别把筹码T丢">底仓</th>
+    <th rowspan="2" data-k="dc" title="跌破5日线或5日涨超7%（拿不住的时刻）提醒守住底仓，别把筹码T丢；点列头提示优先">底仓</th>
     <th class="grp g-act" colspan="2">操作明细</th>
   </tr>
   <tr>
@@ -359,19 +359,19 @@ footer{
     <th class="g-ladder" data-k="l45" title="每股分红÷4.5%，观望区上沿">4.5%线</th>
     <th class="g-ladder" data-k="l4" title="每股分红÷4%，现价高于此进入减仓区">4%线</th>
     <th class="g-ladder" data-k="l3" title="每股分红÷3%，现价高于此进入清仓区">3%线</th>
-    <th class="nosort c-tp" title="手上有票的看这列：过4%线该减仓；4%线内不卖；跌到买入线后升级「不能丢·不卖」">卖不卖</th>
-    <th class="nosort c-tp" title="想进场的看这列：现价过买入线（每股分红÷档位，股息率≥档位）才可买，否则不能买">买不买</th>
+    <th class="c-tp" data-k="kouH" title="手上有票的看这列：过4%线该减仓；4%线内不卖；跌到买入线后升级「不能丢·不卖」；点列头按 该减仓→不卖→不能丢 排序">卖不卖</th>
+    <th class="c-tp" data-k="kouB" title="想进场的看这列：现价过买入线（每股分红÷档位，股息率≥档位）才可买，否则不能买；点列头可买优先">买不买</th>
     <th class="gsep g-tech" data-k="ma20" title="20日收盘均价（腾讯日K·前复权）">20日线</th>
     <th class="g-tech" data-k="d20" title="现价相对20日线距离，正=站上/负=跌破；±0.6%以内=贴线">距20日</th>
     <th class="g-tech" data-k="ma5" title="5日收盘均价；站上=现价高于此">5日线</th>
     <th class="g-tech" data-k="ma5m" title="5个月收盘均价（月K）；±1.5%内为贴近">5月线</th>
     <th class="g-tech" data-k="sk" title="慢速随机 SK/SD：SK≤20 超卖、SK 上穿 SD 金叉、SK>80 超买">SKDJ</th>
     <th class="g-tech" data-k="hist" title="MACD 柱值（DIF−DEA）；缩=绝对值较前一根收窄">MACD柱</th>
-    <th class="nosort c-tp g-tech" title="超卖金叉(3日内)+柱缩，两条件齐=买点">SKDJ买点</th>
+    <th class="c-tp g-tech" data-k="skbuy" title="超卖金叉(3日内)+柱缩，两条件齐=买点；点列头按满足条数排序">SKDJ买点</th>
     <th class="g-tech" data-k="wkd" title="周K线SKDJ；K>80 禁加仓">周SKDJ</th>
-    <th class="nosort c-tp g-tech" title="估值+回踩(跌破20日线或贴5月线)+止跌(站回5日线)=次核心，再加MACD红柱=核心">技术买点</th>
-    <th class="nosort gsep">持股数</th>
-    <th class="nosort">成本</th>
+    <th class="c-tp g-tech" data-k="tp" title="估值+回踩(跌破20日线或贴5月线)+止跌(站回5日线)=次核心，再加MACD红柱=核心；点列头核心优先">技术买点</th>
+    <th class="gsep" data-k="hq">持股数</th>
+    <th data-k="hc">成本</th>
     <th class="nosort g-act">操作后</th>
     <th class="nosort g-act">套现 / 投入</th>
   </tr>
@@ -904,6 +904,14 @@ function rowsSorted(){
     var tiers=x.tiers||DEF_TIERS;
     var zn=zoneOf(x.dps,price,tiers);
     var m=state.ma[x.k]||{};
+    /* 排序序值：卖不卖(该减仓2>不卖1>不能丢0)、买不买(可买1)、SKDJ买点条数、技术买点档位、守底仓、持仓值 */
+    var gx=!!(m.skgOv&&m.skgAgo>=0&&m.skgAgo<=3);
+    var zsx=(m.hist!=null&&m.histPrev!=null&&Math.abs(m.hist)<Math.abs(m.histPrev));
+    var dd20=(price>0&&m.ma20>0)?(price-m.ma20)/m.ma20*100:null;
+    var dd5m=(price>0&&m.ma5m>0)?(price-m.ma5m)/m.ma5m*100:null;
+    var tval=(price>0&&price<=bl);
+    var ttech=(dd20!=null&&dd20<0)||(dd5m!=null&&Math.abs(dd5m)<=1.5);
+    var tstop=(m.ma5>0&&price>0)?(price>m.ma5):false;
     return {
       code:x.k,name:(q&&q.name)||x.name,dps:x.dps,tgt:tgt,
       price:price,pct:q?q.pct:null,pb:q?q.pb:null,
@@ -918,6 +926,12 @@ function rowsSorted(){
       l5:x.dps/tiers[2], l45:x.dps/tiers[3], l4:x.dps/tiers[4], l3:x.dps/tiers[5],
       zone:zn, zoneP:zn?zn.meta.ord:9,
       sig:sig, sigP:{trim:0,buy:1,hold:2,wait:3}[sig.type],
+      kouHP:(price>0)?((price>x.dps/tiers[4])?2:(price<=bl?0:1)):-1,
+      kouBP:(price>0)?((price<=bl)?1:0):-1,
+      skBuyP:(gx?1:0)+(zsx?1:0),
+      tpP:(tval&&ttech&&tstop)?((m.macd===true)?2:1):0,
+      dcP:((m.ma5>0&&price>0&&price<m.ma5)||(m.c5min>0&&price>0&&(price-m.c5min)/m.c5min>=0.07))?1:0,
+      hq:(h&&h.q>0)?h.q:null, hc:(h&&h.c>0)?h.c:null,
       ma20:(m.ma20>0)?m.ma20:null,
       d20:(price>0&&m.ma20>0)?(price-m.ma20)/m.ma20*100:null,
       ma5:(m.ma5>0)?m.ma5:null,
@@ -930,6 +944,11 @@ function rowsSorted(){
     if(k==="name"){ return d*a.name.localeCompare(b.name,"zh"); }
     if(k==="zone"){ return d*(a.zoneP-b.zoneP)||(b.yld||0)-(a.yld||0); }
     if(k==="sig"){ return d*(a.sigP-b.sigP)||(b.yld||0)-(a.yld||0); }
+    if(k==="kouH"){ return d*(a.kouHP-b.kouHP)||(b.yld||0)-(a.yld||0); }
+    if(k==="kouB"){ return d*(a.kouBP-b.kouBP)||(b.yld||0)-(a.yld||0); }
+    if(k==="skbuy"){ return d*(a.skBuyP-b.skBuyP)||(b.yld||0)-(a.yld||0); }
+    if(k==="tp"){ return d*(a.tpP-b.tpP)||(b.yld||0)-(a.yld||0); }
+    if(k==="dc"){ return d*(a.dcP-b.dcP)||(b.yld||0)-(a.yld||0); }
     var va=a[k],vb=b[k];
     if(va==null&&vb==null)return 0; if(va==null)return 1; if(vb==null)return -1;
     return va<vb?-d:va>vb?d:0;   /* d=-1 为降序，与箭头▼一致 */
@@ -1179,7 +1198,8 @@ function saveHoldings(code){
     if(commitRow(tr)){
       lsSet(HOLD_KEY,state.holdings);
       renderStats(); renderPortfolio();
-      if(state.sortK==="sig") renderTable(); /* 行序随新持仓归位（输入值与焦点已由快照保留） */
+      if(["sig","kouH","kouB","skbuy","tp","dc","hq","hc"].indexOf(state.sortK)>=0)
+        renderTable(); /* 行序随新持仓归位（输入值与焦点已由快照保留） */
     }
   },600);
 }
