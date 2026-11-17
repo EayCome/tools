@@ -121,6 +121,12 @@ tbody tr:hover{background:var(--card)}
 
 /* ---- 表头/标的列样式（横向滚动时标的列吸左；页面自然纵向滚动） ---- */
 thead th{position:sticky; top:0; z-index:3; background:var(--paper)}
+th.grp{                  /* 双行表头：上行组名（跨列），下行列名 */
+  height:24px; padding:1px 8px; text-align:center; cursor:default;
+  font-size:11.5px; letter-spacing:.22em; color:var(--ink3);
+}
+th.grp:hover{color:var(--ink3)}
+thead tr+tr th{top:25px}   /* 第二行列名贴住组行下缘，两行一起吸顶 */
 th.name{left:0; z-index:5}
 td.name{position:sticky; left:0; z-index:2; background:var(--paper)}
 th.name,td.name{box-shadow:inset -1px 0 0 var(--rule)}  /* 冻结列右缘画一条分界线 */
@@ -136,7 +142,7 @@ tbody tr:hover td.name{background:var(--card)}
   padding:4px 10px;
 }
 /* ---- 列分组开关：默认收起估值/价位梯队，给表格留白 ---- */
-.no-est .g-est,.no-ladder .g-ladder,.no-tech .g-tech,.no-act .g-act{display:none}
+.no-est .g-est,.no-ladder .g-ladder,.no-tech .g-tech,.no-act .g-act,.no-mkt .g-mkt{display:none}
 .colmenu{position:relative}
 .colpop{
   position:absolute; left:0; top:calc(100% + 6px); z-index:60;
@@ -301,10 +307,12 @@ footer{
       <div class="cp-head">列目<span id="cpCount"></span></div>
       <label class="cp-row"><input type="checkbox" data-g="est">
         <span class="cp-tx"><b>估值</b><i>PB · 目标成本</i></span></label>
+      <label class="cp-row"><input type="checkbox" data-g="mkt">
+        <span class="cp-tx"><b>市场</b><i>PE · 市值 · 换手 · 量比</i></span></label>
       <label class="cp-row"><input type="checkbox" data-g="ladder">
         <span class="cp-tx"><b>价位梯队</b><i>6% ~ 3% 六条价位线</i></span></label>
       <label class="cp-row"><input type="checkbox" data-g="tech">
-        <span class="cp-tx"><b>技术</b><i>20日线 · 5月线 · 买点</i></span></label>
+        <span class="cp-tx"><b>技术</b><i>均线 · SKDJ · MACD · 买点</i></span></label>
       <label class="cp-row"><input type="checkbox" data-g="act">
         <span class="cp-tx"><b>操作明细</b><i>操作后 · 套现</i></span></label>
     </div>
@@ -315,31 +323,51 @@ footer{
 <div class="scroll" id="viewGrid">
 <table id="tbl">
   <caption>自选行情与成本计算</caption>
-  <thead><tr>
-    <th class="name" data-k="name">标的</th>
-    <th data-k="price">现价</th>
-    <th data-k="yld">股息率</th>
-    <th data-k="dps">每股分红</th>
-    <th class="gsep" data-k="tier" title="档位=门槛股息率，股息率≥档位时可买入；买入线=每股分红÷档位">档位</th>
-    <th class="g-est" data-k="pb">PB</th>
-    <th class="g-est" data-k="tgt">目标成本</th>
-    <th class="gsep g-ladder" data-k="l6" title="每股分红÷6%，现价低于此为融资区">6%线</th>
+  <thead>
+  <tr>
+    <th class="name" rowspan="2" data-k="name">标的</th>
+    <th rowspan="2" data-k="price">现价</th>
+    <th rowspan="2" data-k="yld">股息率</th>
+    <th rowspan="2" data-k="dps" title="26年每股分红预估（元/股）">分红预估</th>
+    <th class="gsep" rowspan="2" data-k="tier" title="档位=门槛股息率，股息率≥档位时可买入；买入线=每股分红÷档位">档位</th>
+    <th class="grp g-est gsep" colspan="2">估值</th>
+    <th class="grp g-mkt" colspan="4">市场</th>
+    <th class="grp g-ladder gsep" colspan="6">价位梯队</th>
+    <th rowspan="2" data-k="zone">当前区域</th>
+    <th class="grp g-tech gsep" colspan="9">技术</th>
+    <th class="grp gsep" colspan="2">持仓</th>
+    <th rowspan="2" data-k="sig">操作建议</th>
+    <th rowspan="2" title="跌破5日线或5日涨超7%（拿不住的时刻）提醒守住底仓，别把筹码T丢">底仓</th>
+    <th class="grp g-act" colspan="2">操作明细</th>
+  </tr>
+  <tr>
+    <th class="g-est gsep" data-k="pb">PB</th>
+    <th class="g-est" data-k="tgt" title="底仓价=每股分红÷6%（即原目标成本）">底仓价6%</th>
+    <th class="g-mkt" data-k="pe" title="市盈率TTM">PE(TTM)</th>
+    <th class="g-mkt" data-k="cap" title="总市值（亿元）">总市值</th>
+    <th class="g-mkt" data-k="turn" title="换手率">换手</th>
+    <th class="g-mkt" data-k="volr" title="量比">量比</th>
+    <th class="g-ladder gsep" data-k="l6" title="每股分红÷6%，现价低于此为融资区">6%线</th>
     <th class="g-ladder" data-k="l55" title="每股分红÷5.5%，满仓线：跌至此应满仓">5.5%线</th>
     <th class="g-ladder" data-k="l5" title="每股分红÷5%，买点：跌破此线开始买入">5%线</th>
     <th class="g-ladder" data-k="l45" title="每股分红÷4.5%，观望区上沿">4.5%线</th>
     <th class="g-ladder" data-k="l4" title="每股分红÷4%，现价高于此进入减仓区">4%线</th>
     <th class="g-ladder" data-k="l3" title="每股分红÷3%，现价高于此进入清仓区">3%线</th>
-    <th data-k="zone">当前区域</th>
     <th class="gsep g-tech" data-k="ma20" title="20日收盘均价（腾讯日K·前复权）">20日线</th>
     <th class="g-tech" data-k="d20" title="现价相对20日线距离，正=站上/负=跌破；±0.6%以内=贴线">距20日</th>
+    <th class="g-tech" data-k="ma5" title="5日收盘均价；站上=现价高于此">5日线</th>
     <th class="g-tech" data-k="ma5m" title="5个月收盘均价（月K）；±1.5%内为贴近">5月线</th>
+    <th class="g-tech" data-k="sk" title="慢速随机 SK/SD：SK≤20 超卖、SK 上穿 SD 金叉、SK>80 超买">SKDJ</th>
+    <th class="g-tech" data-k="hist" title="MACD 柱值（DIF−DEA）；缩=绝对值较前一根收窄">MACD柱</th>
+    <th class="nosort c-tp g-tech" title="超卖金叉(3日内)+柱缩，两条件齐=买点">SKDJ买点</th>
+    <th class="g-tech" data-k="wkd" title="周K线SKDJ；K>80 禁加仓">周SKDJ</th>
     <th class="nosort c-tp g-tech" title="估值+回踩(跌破20日线或贴5月线)+止跌(站回5日线)=次核心，再加MACD红柱=核心">技术买点</th>
     <th class="nosort gsep">持股数</th>
     <th class="nosort">成本</th>
-    <th data-k="sig">操作建议</th>
     <th class="nosort g-act">操作后</th>
     <th class="nosort g-act">套现 / 投入</th>
-  </tr></thead>
+  </tr>
+  </thead>
   <tbody id="tbody"></tbody>
 </table>
 </div>
@@ -350,6 +378,7 @@ footer{
   行情来自腾讯公共接口（东方财富备用），双击本地打开即可自动更新，无需安装任何东西；行情或有延迟。<br>
   20日线、5日线、5月线、MACD 来自腾讯日K/月K（前复权）；贴线=现价距均线 ±0.6% 内（5月线 ±1.5%）。<br>
   技术买点=估值(股息率≥档位)+技术(跌破20日线或贴5月线)+止跌(站回5日线)三样齐为次核心，再加 MACD 红柱为核心。<br>
+  SKDJ买点=超卖金叉(3日内)+柱缩 两条件齐；周SKDJ 为周K慢速随机，K>80=禁加仓；底仓列在跌破5日线或5日涨超7%时提示「守底仓」；区域列下口诀=4%线内「不能丢 · 不卖」、过买入线才「可买」；底仓价6%=每股分红÷6%；PE/市值/换手/量比来自行情接口。<br>
   股息率一律按「每股分红 ÷ 现价」计算，与目标成本口径一致；价位阶梯：5%线=买点、5~5.5%买入区、5.5%线=满仓、6%线=融资区，4.5~5%观望区、4%线以上减仓、3%线以上清仓；操作建议按目标成本位推算，未计费用税费；拿不住时（跌破5日线或连涨七八个点）按此思路算底仓。<br>
   买点提醒：现价距买入线（每股分红÷档位）≤3% 为「接近」、跌破为「到点」，点「提醒」授权后桌面通知+提示音，只在状态翻变时响一次；页面需保持开着（挂后台每分钟盯一次）。<br>
   持仓与缓存只保存在本机浏览器（localStorage），不上传、不联网传输；不构成任何投资建议。自选列表在文件内 <code>DATA</code> 处维护。
@@ -399,10 +428,10 @@ var K=0.06;
 /* ================= 数据源 =================
   主源：腾讯 qt.gtimg.cn（GBK 文本，用 <script> 标签加载，任何环境可用）
   备用：东方财富 push2（UTF-8 JSON，接口带 CORS）
-  两者归一化成 {code,name,price,pct,peT,yldMkt,capYi,ts}
+  两者归一化成 {code,name,price,pct,peT,yldMkt,capYi,turn,volr,ts}
   腾讯字段下标经真实响应交叉验证：价[3] 涨跌幅[32] 市盈率TTM[53] 总市值亿[45] 时间[30] */
 var TX_URL="https://qt.gtimg.cn/q=";
-var EM_URL="https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&fields=f2,f3,f12,f14,f20,f114,f124,f133&secids=";
+var EM_URL="https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&fields=f2,f3,f12,f14,f20,f50,f114,f124,f133,f168&secids=";
 
 function secid(code){ return (code.charAt(0)==="6" ? "1." : "0.")+code; }
 function mktPrefix(code){
@@ -428,7 +457,7 @@ function fetchTencent(){
         /* 接口的股息率槽位数据不可靠，股息率一律由 dps/price 自算 */
         var o={code:x.k,name:f[1]||x.name,
           price:num(f[3]),pct:num(f[32]),peT:num(f[53]),pb:num(f[46]),yldMkt:null,
-          capYi:num(f[45]),ts:null};
+          capYi:num(f[45]),turn:num(f[38]),volr:num(f[49]),ts:null};
         var m=/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(f[30]||"");
         if(m) o.ts=Math.floor(+new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5])/1000);
         out[x.k]=o;
@@ -454,7 +483,7 @@ function fetchEastmoney(){
       list.forEach(function(d){
         out[d.f12]={code:d.f12,name:String(d.f14||""),
           price:num(d.f2),pct:num(d.f3),peT:num(d.f114),pb:num(d.f23),yldMkt:num(d.f133),
-          capYi:num(d.f20)==null?null:num(d.f20)/1e8,ts:num(d.f124)};
+          capYi:num(d.f20)==null?null:num(d.f20)/1e8,turn:num(d.f168),volr:num(d.f50),ts:num(d.f124)};
       });
       if(!Object.keys(out).length) throw new Error("empty");
       return out;
@@ -476,7 +505,7 @@ function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){}
 function pctCls(v){ return v>0?"up":v<0?"down":"flat"; }
 
 /* ================= 状态 ================= */
-var CACHE_KEY="gxpanel_cache_v1", HOLD_KEY="gxpanel_holdings_v1", MA_KEY="gxpanel_ma_v1";
+var CACHE_KEY="gxpanel_cache_v1", HOLD_KEY="gxpanel_holdings_v1", MA_KEY="gxpanel_ma_v2";
 var state={
   rows:null,          /* code -> 归一化行情 */
   src:null,           /* "tencent" | "eastmoney" | "cache" */
@@ -537,7 +566,7 @@ function fail(){
    并发池拉取：同时最多 4 只在途（MA_CONC=4），绝不 48 连发。
    每股三路源依次兜底（均为前复权）：东财 fetch → 东财 cb= JSONP → 腾讯 _var= JSONP。
    东财连败则 10 分钟内改腾讯优先，东财任一路成功即自动复位；连续 3 只全源失败即熔断本轮。
-   20日线/5日线/5月线/MACD红柱；1 小时本地缓存（localStorage，刷新/重开不重拉），
+   20日线/5日线/5月线/MACD柱值/SKDJ；1 小时本地缓存（localStorage，刷新/重开不重拉），
    失败 5 分钟起指数退避；手动「刷新」强制拉取。 */
 function mkCode(k){ return mktPrefix(k)+k; }
 var emDeadUntil=0;   /* 东财连败标记：10 分钟内改腾讯优先，东财任一路成功即复位 */
@@ -609,7 +638,8 @@ function fetchKlineTx(full,period,n){
       if(!d||d===0){ reject(new Error("kline empty")); return; }
       /* 只认前复权键：缺失按失败处理（走重试），不静默回落不复权数据 */
       var dd=d&&d.data&&d.data[full];
-      var arr=dd&&dd[period==="day"?"qfqday":"qfqmonth"];
+      var qkey=period==="day"?"qfqday":period==="week"?"qfqweek":"qfqmonth";
+      var arr=dd&&dd[qkey];
       resolve((arr&&arr.length)?arr:null);
     };
     s.onerror=function(){ cleanup(); reject(new Error("kline load error")); };
@@ -633,6 +663,41 @@ function closesOf(bars){
   var out=[];
   (bars||[]).forEach(function(b){ var v=closeOf(b); if(v>0)out.push(v); });
   return out;
+}
+function hlocsOf(bars){   /* 日K转 [收,高,低] 三元组：SKDJ 要最高最低价 */
+  var out=[];
+  (bars||[]).forEach(function(b){
+    var a=(typeof b==="string")?b.split(","):b;
+    var c=num(a[2]),h=num(a[3]),l=num(a[4]);
+    if(c>0&&h>0&&l>0) out.push([c,h,l]);
+  });
+  return out;
+}
+function skdjOf(chl){     /* 慢速随机：RSV(9)→SK=SMA(RSV,3,1)→SD=SMA(SK,3,1)；记最近一次金叉距今天数与是否低位 */
+  if(chl.length<12) return null;
+  var sk=50,sd=50,gAgo=-1,gOv=false;
+  for(var i=0;i<chl.length;i++){
+    var j0=Math.max(0,i-8),hh=-1e9,ll=1e9;
+    for(var j=j0;j<=i;j++){ if(chl[j][1]>hh)hh=chl[j][1]; if(chl[j][2]<ll)ll=chl[j][2]; }
+    var rsv=(hh>ll)?(chl[i][0]-ll)/(hh-ll)*100:50;
+    var psk=sk,psd=sd;
+    sk=(rsv+2*sk)/3; sd=(sk+2*sd)/3;
+    if(psk<=psd&&sk>sd){ gAgo=chl.length-1-i; gOv=(Math.min(psk,psd)<=20||sk<=25); }
+  }
+  return {sk:sk,sd:sd,gAgo:gAgo,gOv:gOv};
+}
+function macdOf(closes){  /* MACD：红柱=DIF−DEA>0；另存柱值/前柱值，柱缩=|柱|收窄 */
+  if(closes.length<35) return null;
+  var e12=0,e26=0,dea=0,dif=0,h=0,ph=0;
+  for(var i=0;i<closes.length;i++){
+    var c=closes[i];
+    e12=i===0?c:c*2/13+e12*11/13;
+    e26=i===0?c:c*2/27+e26*25/27;
+    dif=e12-e26;
+    dea=i===0?dif:dif*2/10+dea*8/10;
+    ph=h; h=dif-dea;
+  }
+  return {red:h>0,hist:h,prevHist:ph};
 }
 function avgLast(a,n){
   if(a.length<n) return null;
@@ -688,17 +753,29 @@ function loadKlines(force){
     function emMon(){ return fetchKlineEM(bare,103,10); }
     function emJMon(){ return fetchKlineEMJ(bare,103,10); }
     function txMon(){ return fetchKlineTx(full,"month",10); }
+    function emWk(){ return fetchKlineEM(bare,102,30); }
+    function emJWk(){ return fetchKlineEMJ(bare,102,30); }
+    function txWk(){ return fetchKlineTx(full,"week",30); }
     var chain;
     try{
       chain=trySrcs(Date.now()<emDeadUntil?rot3([emDay,emJDay,txDay]):[emDay,emJDay,txDay])
         .then(function(day){
-          return trySrcs(Date.now()<emDeadUntil?rot3([emMon,emJMon,txMon]):[emMon,emJMon,txMon])
-            .then(function(mon){
-              var dc=closesOf(day), mc=closesOf(mon);
-              /* 任一周期为空=失败：ts:0 + tryAt 记账进退避；成功记 MA_TTL */
-              state.ma[x.k]={ ma20:avgLast(dc,20), ma5:avgLast(dc,5), ma5m:avgLast(mc,5),
-                              macd:macdRed(dc), ts:(dc.length>0&&mc.length>0)?now:0, tryAt:now };
-            });
+          /* 月K与周K并行拉：都走同一套三路兜底 */
+          var monP=trySrcs(Date.now()<emDeadUntil?rot3([emMon,emJMon,txMon]):[emMon,emJMon,txMon]);
+          var wkP=trySrcs(Date.now()<emDeadUntil?rot3([emWk,emJWk,txWk]):[emWk,emJWk,txWk]);
+          return Promise.all([monP,wkP]).then(function(mw){
+            var mon=mw[0], wk=mw[1];
+            var dc=closesOf(day), mc=closesOf(mon);
+            var kd=skdjOf(hlocsOf(day)), md=macdOf(dc), wkD=skdjOf(hlocsOf(wk));
+            var c5=dc.slice(-5), c5min=c5.length?Math.min.apply(null,c5):null;
+            /* 日/月K任一为空=失败记账退避；周K缺只是没有周SKDJ，不算失败 */
+            state.ma[x.k]={ ma20:avgLast(dc,20), ma5:avgLast(dc,5), ma5m:avgLast(mc,5),
+                            macd:md?md.red:null, hist:md?md.hist:null, histPrev:md?md.prevHist:null,
+                            sk:kd?kd.sk:null, sd:kd?kd.sd:null,
+                            skgAgo:kd?kd.gAgo:-1, skgOv:!!(kd&&kd.gOv),
+                            wkd:wkD?wkD.sk:null, wdd:wkD?wkD.sd:null, c5min:c5min,
+                            ts:(dc.length>0&&mc.length>0)?now:0, tryAt:now };
+          });
         });
     }catch(e){ chain=Promise.reject(e); }   /* 建链同步异常也走统一记账，不卡计数 */
     chain.catch(function(){ state.ma[x.k]={ ts:0, tryAt:now }; })
@@ -822,6 +899,9 @@ function rowsSorted(){
     return {
       code:x.k,name:(q&&q.name)||x.name,dps:x.dps,tgt:tgt,
       price:price,pct:q?q.pct:null,pb:q?q.pb:null,
+      pe:q?q.peT:null, cap:q?q.capYi:null, turn:q?q.turn:null, volr:q?q.volr:null,
+      sk:(m.sk>0)?m.sk:null, sd:(m.sd>0)?m.sd:null,
+      hist:(m.hist!=null&&isFinite(m.hist))?m.hist:null,
       yld:(price!=null)?x.dps/price*100:null,   /* 面板股息率一律按 dps/现价 */
       tier:x.tier, buyLine:bl,
       near:(price!=null&&price>0&&price>bl&&price<=bl*(1+ALERT_NEAR))?(price-bl)/bl*100:null,
@@ -832,7 +912,9 @@ function rowsSorted(){
       sig:sig, sigP:{trim:0,buy:1,hold:2,wait:3}[sig.type],
       ma20:(m.ma20>0)?m.ma20:null,
       d20:(price>0&&m.ma20>0)?(price-m.ma20)/m.ma20*100:null,
+      ma5:(m.ma5>0)?m.ma5:null,
       ma5m:(m.ma5m>0)?m.ma5m:null,
+      wkd:(m.wkd>0)?m.wkd:null,
     };
   });
   var k=state.sortK,d=state.sortDir;
@@ -915,6 +997,16 @@ function renderTable(){
     var tech=(d20!=null&&d20<0)||(d5!=null&&Math.abs(d5)<=1.5);
     var stop=(m.ma5>0&&r.price>0)?(r.price>m.ma5):false;
     if(valOK&&tech&&stop) tp=(m.macd===true)?"core":"sub";
+    /* 行长口径：SKDJ买点=超卖金叉(3日内)+柱缩；周SKDJ K>80 禁加仓；
+       跌破5日线或5日涨超7%（拿不住的时刻）提示守底仓；区域列下挂「不能丢·不卖·(不)能买」口诀 */
+    var gxm=!!(m.skgOv&&m.skgAgo>=0&&m.skgAgo<=3);
+    var zs=(r.hist!=null&&m.histPrev!=null&&Math.abs(r.hist)<Math.abs(m.histPrev));
+    var d5d=(r.price>0&&m.ma5>0)?(r.price-m.ma5)/m.ma5*100:null;
+    var brk5=(r.price>0&&m.ma5>0&&r.price<m.ma5);
+    var pump5=(r.price>0&&m.c5min>0&&(r.price-m.c5min)/m.c5min>=0.07);
+    var kou=(r.price>0&&r.l4>0)
+      ? ((r.price<=r.l4)?"不能丢 · ":"")+(r.price<=r.buyLine?"可买":"不能买")
+        +" · "+(r.price<=r.l4?"不卖":"该减仓") : "";
     var tr=document.createElement("tr");
     tr.setAttribute("data-code",r.code);
     tr.innerHTML=
@@ -927,35 +1019,63 @@ function renderTable(){
       +'<td class="n">'+r.dps.toFixed(4)+'</td>'
       +'<td class="n gsep" title="股息率≥档位时可买入">'+(r.tier*100).toFixed(2)+'%<span class="sub">买入线 '+r.buyLine.toFixed(2)+'</span></td>'
       +'<td class="n g-est">'+(r.pb==null?"—":r.pb.toFixed(2))+'</td>'
-      +'<td class="n g-est">'+r.tgt.toFixed(3)+'</td>'
+      +'<td class="n g-est" title="底仓价=每股分红÷6%">'+r.tgt.toFixed(3)+'</td>'
+      +'<td class="n g-mkt" title="市盈率TTM">'+(r.pe==null?"—":r.pe.toFixed(2))+'</td>'
+      +'<td class="n g-mkt" title="总市值（亿元）">'+(r.cap==null?"—":fmt(r.cap,0))+'</td>'
+      +'<td class="n g-mkt" title="换手率">'+(r.turn==null?"—":r.turn.toFixed(2)+'%')+'</td>'
+      +'<td class="n g-mkt" title="量比">'+(r.volr==null?"—":r.volr.toFixed(2))+'</td>'
       +'<td class="n gsep g-ladder" title="每股分红÷6%，现价低于此为融资区">'+r.l6.toFixed(2)+'</td>'
       +'<td class="n g-ladder" title="每股分红÷5.5%，满仓线">'+r.l55.toFixed(2)+'</td>'
       +'<td class="n g-ladder" title="每股分红÷5%，买点：跌破此线开始买入">'+r.l5.toFixed(2)+'</td>'
       +'<td class="n g-ladder" title="每股分红÷4.5%，观望区上沿">'+r.l45.toFixed(2)+'</td>'
       +'<td class="n g-ladder" title="每股分红÷4%，现价高于此进入减仓区">'+r.l4.toFixed(2)+'</td>'
       +'<td class="n g-ladder" title="每股分红÷3%，现价高于此进入清仓区">'+r.l3.toFixed(2)+'</td>'
-      +'<td>'+(r.zone?'<span class="zone '+r.zone.meta.cls+'" title="股息率 '+(r.yld==null?"—":r.yld.toFixed(2)+'%')+'，按分红反推价位阶梯定区">'+r.zone.meta.label+'</span>':'<span class="muted">—</span>')+'</td>'
+      +'<td>'+(r.zone?'<span class="zone '+r.zone.meta.cls+'" title="股息率 '+(r.yld==null?"—":r.yld.toFixed(2)+'%')+'，按分红反推价位阶梯定区">'+r.zone.meta.label+'</span>':'<span class="muted">—</span>')
+        +(kou?'<span class="sub" title="口诀：4%线内不卖、底仓不能丢；过买入线才可买">'+kou+'</span>':'')+'</td>'
       +'<td class="n gsep g-tech">'+(m.ma20>0?m.ma20.toFixed(2):(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
       +'<td class="n g-tech">'+(d20==null?(mld?'<span class="muted">…</span>':'<span class="muted">—</span>')
           :'<span class="'+(d20>=0?"up":"down")+'">'+(d20>0?"+":"")+d20.toFixed(2)+'%</span>'
             +(d20>=-0.6&&d20<=0.6?'<span class="tag-line">贴线</span>'
              :(d20<-0.6?'<span class="tag-line tag-brk">跌破</span>':'')))+'</td>'
+      +'<td class="n g-tech">'+(m.ma5>0?m.ma5.toFixed(2)
+            +(d5d==null?"":'<span class="sub '+(d5d>=0?"up":"down")+'">'+(d5d>=0?"站上":"跌破")+Math.abs(d5d).toFixed(1)+'%</span>')
+          :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
       +'<td class="n g-tech">'+(m.ma5m>0?m.ma5m.toFixed(2)
             +(d5==null?"":'<span class="sub '+(d5>=0?"up":"down")+'">'+(d5>0?"+":"")+d5.toFixed(1)+'%'
               +(Math.abs(d5)<=1.5?' <span class="tag-line">贴近</span>':'')+'</span>')
           :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
+      +'<td class="n g-tech" title="日K慢速随机 SK/SD">'+((m.sk>0&&m.sd>0)
+            ? m.sk.toFixed(1)+'<span class="sub">'+m.sd.toFixed(1)+'</span>'
+              +(gxm?'<span class="tag-line tag-brk">超卖金叉</span>':'')
+            :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
+      +'<td class="n g-tech" title="MACD 柱值（DIF−DEA）；缩=绝对值较前一根收窄">'+(r.hist!=null
+            ? '<span class="'+(r.hist>0?"up":"down")+'">'+(r.hist>0?"+":"")+r.hist.toFixed(3)+'</span>'
+              +(zs?'<span class="tag-line">缩</span>':'')
+            :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
+      +'<td class="c-tp g-tech" title="超卖金叉(3日内)+柱缩，两条件齐">'+((gxm&&zs)
+            ?'<span class="sig sig-buy" style="font-weight:700">✓ 买点</span>'
+            :((gxm?1:0)+(zs?1:0)
+              ?'<span class="sig sig-wait" title="超卖金叉'+(gxm?"✓":"✗")+' · 柱缩'+(zs?"✓":"✗")+'">'+((gxm?1:0)+(zs?1:0))+'/2</span>'
+              :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>')))+'</td>'
+      +'<td class="n g-tech" title="周K慢速随机 K/SD；K>80 禁加仓">'+((m.wkd>0&&m.wdd>0)
+            ? '<span class="'+(m.wkd>80?"gap-bad":"")+'">'+m.wkd.toFixed(1)+'</span><span class="sub">'+m.wdd.toFixed(1)+'</span>'
+              +(m.wkd>80?'<span class="tag-line" style="color:var(--rust);border-color:var(--rust)">禁加仓</span>':'')
+            :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
       +'<td class="c-tp g-tech">'+(tp==="core"?'<span class="sig sig-core" title="估值达标+回踩20日线(或贴5月线)+站回5日线+MACD红柱">核心</span>'
           :tp==="sub"?'<span class="sig sig-sub" title="估值达标+回踩20日线(或贴5月线)+站回5日线，MACD 未红">次核心</span>'
           :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
       +'<td class="c-io gsep"><input class="tin" data-cc="'+r.code+'" data-field="q" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="'+esc(kv.q!=null?kv.q:(h?h.q:""))+'"></td>'
       +'<td class="c-io"><input class="tin" data-cc="'+r.code+'" data-field="c" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="'+esc(kv.c!=null?kv.c:(h?h.c:""))+'"></td>'
       +'<td class="c-sig"></td>'
+      +'<td>'+((brk5||pump5)
+          ?'<span class="sig" style="color:var(--brass);border-color:var(--brass)" title="'+(brk5?"跌破5日线":"5日涨超7%")+'——拿不住的时刻：守住底仓，别把筹码T丢">守底仓</span>'
+          :'<span class="muted">—</span>')+'</td>'
       +'<td class="n c-after g-act"></td>'
       +'<td class="n c-cash g-act"></td>';
     frag.appendChild(tr);
   });
   tbody.innerHTML=""; tbody.appendChild(frag);
-  if(!shown) tbody.innerHTML='<tr><td class="dimmed" colspan="23">没有匹配「'+esc(state.q)+'」的标的</td></tr>';
+  if(!shown) tbody.innerHTML='<tr><td class="dimmed" colspan="33">没有匹配「'+esc(state.q)+'」的标的</td></tr>';
   document.querySelectorAll("#tbody tr").forEach(updateRow);
   if(state.flashCode){   /* 板块卡片点来的高亮：表格重建后重放一次 */
     var fr=document.querySelector('#tbody tr[data-code="'+state.flashCode+'"]');
@@ -1242,23 +1362,24 @@ document.addEventListener("keydown",function(e){
 });
 
 /* ================= 列分组开关 =================
-   核心列常显；估值/价位梯队/技术/操作明细四组在「列目」里开关，选择记忆。 */
+   核心列常显；估值/市场/价位梯队/技术/操作明细五组在「列目」里开关，选择记忆。 */
 var COLS_KEY="gxpanel_cols_v1";
-var colState=lsGet(COLS_KEY)||{est:false,ladder:false,tech:true,act:false};
+var colState=lsGet(COLS_KEY)||{est:false,ladder:false,tech:true,act:false,mkt:false};
 function applyCols(reveal){
   document.body.classList.toggle("no-est",!colState.est);
   document.body.classList.toggle("no-ladder",!colState.ladder);
   document.body.classList.toggle("no-tech",!colState.tech);
   document.body.classList.toggle("no-act",!colState.act);
+  document.body.classList.toggle("no-mkt",!colState.mkt);
   document.querySelectorAll("#colPop input").forEach(function(cb){
     var g=cb.getAttribute("data-g");
     cb.checked=!!colState[g];
     if(cb.parentNode) cb.parentNode.classList.toggle("on",cb.checked);
   });
-  var nOpen=0; ["est","ladder","tech","act"].forEach(function(g){ if(colState[g]) nOpen++; });
-  var cpCount=$("cpCount"); if(cpCount) cpCount.textContent="已开 "+nOpen+"/4";
+  var nOpen=0; ["est","ladder","tech","act","mkt"].forEach(function(g){ if(colState[g]) nOpen++; });
+  var cpCount=$("cpCount"); if(cpCount) cpCount.textContent="已开 "+nOpen+"/5";
   lsSet(COLS_KEY,colState);
-  /* 勾选启用某组后，把该组第一列滚进视口——23列表格新列常在屏幕右侧外，不滚会以为没生效 */
+  /* 勾选启用某组后，把该组第一列滚进视口——33列表格新列常在屏幕右侧外，不滚会以为没生效 */
   if(reveal) scrollSoft(document.querySelector(".scroll th.g-"+reveal),{inline:"center",block:"nearest"});
 }
 $("btnCols").addEventListener("click",function(e){
