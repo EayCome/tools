@@ -99,8 +99,11 @@ h1{
 #viewSector{padding:2px 12px}
 table{width:100%; border-collapse:separate; border-spacing:0; font-size:14.5px; min-width:980px}
 caption{display:none}
-th,td{padding:9px 9px; border-bottom:1px solid var(--rule2); text-align:right; white-space:nowrap}
-th:first-child,td:first-child{text-align:left}
+th,td{
+  padding:9px 9px; border-bottom:1px solid var(--rule2);
+  text-align:center; vertical-align:middle; white-space:nowrap;   /* 单元格水平+垂直居中 */
+}
+th:first-child,td:first-child{text-align:center}
 th{
   font-weight:400; color:var(--ink3); font-size:12.5px; border-bottom:1px solid var(--rule);
   cursor:pointer; user-select:none; position:relative; padding-right:16px;
@@ -182,8 +185,8 @@ tbody tr:hover td.name{background:var(--card)}
 td.dimmed{padding:22px 12px; text-align:center; color:var(--ink3)}
 
 /* ---- 技术层标记 ---- */
-.tag-line{                 /* display:table = 块级但宽度收缩：自动换到数值下一行，不再挤在同一行 */
-  display:table; margin-top:2px; padding:0 5px;
+.tag-line{                 /* display:table + margin:auto：宽度收缩、独占一行、跟着单元格居中 */
+  display:table; margin:2px auto 0; padding:0 5px;
   font-size:11.5px; line-height:1.6; color:var(--brass);
   border:1px solid var(--brass); border-radius:2px;
 }
@@ -223,7 +226,7 @@ tr.flash td.name{animation:none}  /* 吸左列靠不透明底色遮挡正文，�
   font-family:var(--num); font-size:14.5px; font-variant-numeric:tabular-nums;
   color:var(--ink); background:var(--paper);
   border:1px solid var(--rule); border-radius:2px;
-  padding:4px 7px; width:100%; text-align:right;
+  padding:4px 7px; width:100%; text-align:center;
 }
 .tin:focus-visible{outline:2px solid var(--brass); outline-offset:1px; border-color:var(--brass)}
 td.c-io{min-width:96px; padding:6px 6px}
