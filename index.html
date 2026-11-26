@@ -121,12 +121,11 @@ tbody tr:hover{background:var(--card)}
 
 /* ---- 表头/标的列样式（横向滚动时标的列吸左；页面自然纵向滚动） ---- */
 thead th{position:sticky; top:0; z-index:3; background:var(--paper)}
-th.grp{                  /* 双行表头：上行组名（跨列），下行列名 */
-  height:24px; padding:1px 8px; text-align:center; cursor:default;
-  font-size:11.5px; letter-spacing:.22em; color:var(--ink3);
+.th-main{display:block; line-height:1.3}
+.th-sub{                                   /* 列名下的灰色口径小字，仿行长表头 */
+  display:block; font-size:10.5px; line-height:1.25; letter-spacing:0;
+  color:var(--ink3); font-weight:400; white-space:normal; max-width:80px;
 }
-th.grp:hover{color:var(--ink3)}
-thead tr+tr th{top:25px}   /* 第二行列名贴住组行下缘，两行一起吸顶 */
 th.name{left:0; z-index:5}
 td.name{position:sticky; left:0; z-index:2; background:var(--paper)}
 th.name,td.name{box-shadow:inset -1px 0 0 var(--rule)}  /* 冻结列右缘画一条分界线 */
@@ -325,23 +324,11 @@ footer{
   <caption>自选行情与成本计算</caption>
   <thead>
   <tr>
-    <th class="name" rowspan="2" data-k="name">标的</th>
-    <th rowspan="2" data-k="price">现价</th>
-    <th rowspan="2" data-k="yld">股息率</th>
-    <th rowspan="2" data-k="dps" title="26年每股分红预估（元/股）">分红预估</th>
-    <th class="gsep" rowspan="2" data-k="tier" title="档位=门槛股息率，股息率≥档位时可买入；买入线=每股分红÷档位">档位</th>
-    <th class="grp g-est gsep" colspan="2">估值</th>
-    <th class="grp g-mkt" colspan="5">市场</th>
-    <th class="grp g-ladder gsep" colspan="6">价位梯队</th>
-    <th rowspan="2" data-k="zone">当前区域</th>
-    <th class="grp gsep" colspan="3">口诀</th>
-    <th class="grp g-tech gsep" colspan="10">技术</th>
-    <th class="grp gsep" colspan="2">持仓</th>
-    <th rowspan="2" data-k="sig">操作建议</th>
-    <th rowspan="2" data-k="dc" title="跌破5日线或5日涨超7%（拿不住的时刻）提醒守住底仓，别把筹码T丢；点列头提示优先">底仓</th>
-    <th class="grp g-act" colspan="2">操作明细</th>
-  </tr>
-  <tr>
+    <th class="name" data-k="name">标的</th>
+    <th data-k="price">现价</th>
+    <th data-k="yld">股息率</th>
+    <th data-k="dps" title="26年每股分红预估（元/股）">分红预估</th>
+    <th class="gsep" data-k="tier" title="档位=门槛股息率，股息率≥档位时可买入；买入线=每股分红÷档位">档位</th>
     <th class="g-est gsep" data-k="pb">PB</th>
     <th class="g-est" data-k="tgt" title="底仓价=每股分红÷6%（即原目标成本）">底仓价6%</th>
     <th class="g-mkt" data-k="pe" title="市盈率TTM">PE(TTM)</th>
@@ -355,21 +342,24 @@ footer{
     <th class="g-ladder" data-k="l45" title="每股分红÷4.5%，观望区上沿">4.5%线</th>
     <th class="g-ladder" data-k="l4" title="每股分红÷4%，现价高于此进入减仓区">4%线</th>
     <th class="g-ladder" data-k="l3" title="每股分红÷3%，现价高于此进入清仓区">3%线</th>
-    <th class="c-tp" data-k="knd" title="已到买入线（股息率≥档位）才亮：筹码金贵，底仓不能丢；点列头亮的优先">不能丢</th>
-    <th class="c-tp" data-k="bmm" title="4%线内：不卖；过4%线：该减仓；点列头该减仓优先">不卖</th>
-    <th class="c-tp" data-k="bnb" title="现价过买入线（每股分红÷档位，股息率≥档位）=可买，否则不能买；点列头可买优先">不能买</th>
+    <th data-k="zone" title="股息率落在哪一档价位区间">当前区域</th>
+    <th class="c-tp" data-k="knd" title="已到买入线（股息率≥档位）才亮：筹码金贵，底仓不能丢">不能丢</th>
+    <th class="c-tp" data-k="bmm" title="4%线内：不卖；过4%线：该减仓">不卖</th>
+    <th class="c-tp" data-k="bnb" title="现价过买入线（股息率≥档位）=可买，否则不能买">不能买</th>
     <th class="gsep g-tech" data-k="ma20" title="20日收盘均价（腾讯日K·前复权）">20日线</th>
-    <th class="g-tech" data-k="d20" title="现价相对20日线距离，正=站上/负=跌破；±0.6%以内=贴线">距20日</th>
+    <th class="g-tech" data-k="d20" title="现价相对20日线距离，正=站上/负=跌破">距20日</th>
     <th class="g-tech" data-k="ma5" title="5日收盘均价；站上=现价高于此">5日线</th>
-    <th class="g-tech" data-k="ma5m" title="5个月收盘均价（月K）；±1.5%内为贴近">5月线</th>
+    <th class="g-tech" data-k="ma5m" title="5个月收盘均价（月K）">5月线</th>
     <th class="g-tech" data-k="ma20m" title="20个月收盘均价（月K），判长期大周期位置">20月线</th>
-    <th class="g-tech" data-k="sk" title="慢速随机 SK/SD：SK≤20 超卖、SK 上穿 SD 金叉、SK>80 超买">SKDJ</th>
+    <th class="g-tech" data-k="sk" title="日K慢速随机 SK/SD：K≤20 超卖、上穿=金叉、K>80 超买">SKDJ</th>
     <th class="g-tech" data-k="hist" title="MACD 柱值（DIF−DEA）；缩=绝对值较前一根收窄">MACD柱</th>
-    <th class="c-tp g-tech" data-k="skbuy" title="超卖金叉(3日内)+柱缩，两条件齐=买点；点列头按满足条数排序">SKDJ买点</th>
+    <th class="c-tp g-tech" data-k="skbuy" title="超卖金叉(3日内)+柱缩，两条件齐=买点">SKDJ买点</th>
     <th class="g-tech" data-k="wkd" title="周K线SKDJ；K>80 禁加仓">周SKDJ</th>
-    <th class="c-tp g-tech" data-k="tp" title="估值+回踩(跌破20日线或贴5月线)+止跌(站回5日线)=次核心，再加MACD红柱=核心；点列头核心优先">技术买点</th>
+    <th class="c-tp g-tech" data-k="tp" title="估值+回踩(跌破20日线或贴5月线)+止跌(站回5日线)=次核心，再加MACD红柱=核心">技术买点</th>
     <th class="gsep" data-k="hq">持股数</th>
     <th data-k="hc">成本</th>
+    <th data-k="sig">操作建议</th>
+    <th data-k="dc" title="跌破5日线或5日涨超7%（拿不住的时刻）提醒守住底仓">底仓</th>
     <th class="nosort g-act">操作后</th>
     <th class="nosort g-act">套现 / 投入</th>
   </tr>
@@ -1355,6 +1345,28 @@ document.querySelectorAll("#tbl th[data-k]").forEach(function(th){
   });
 });
 
+/* ================= 表头口径小字 =================
+   行长式：单行列名 + 灰字说明。列名在 HTML 里，口径小字在此统一挂载，
+   避免 38 个 th 逐个改。渲染/排序只增删 .arr，不影响这里。</font> */
+var TH_SUB={
+  name:"代码", price:"", yld:"分红÷现价", dps:"元/股", tier:"≥档位可买",
+  pb:"倍", tgt:"÷6%", pe:"TTM", cap:"亿元", turn:"当日", volr:"5日均", roe:"三季报年化",
+  l6:"融资区", l55:"满仓线", l5:"买点", l45:"观望", l4:"减仓线", l3:"清仓线",
+  knd:"到买入线才亮", bmm:"4%线内", bnb:"未到买入线",
+  ma20:"日K", d20:"±0.6%贴线", ma5:"日K", ma5m:"月K", ma20m:"月K",
+  sk:"K<20 超卖", hist:"DIF−DEA", skbuy:"超卖金叉+柱缩", wkd:"K>80 禁加仓",
+  tp:"估值+回踩+止跌", zone:"按分红阶梯", sig:"按成本位", dc:"跌破5日/涨7%"
+};
+function applyThSub(){
+  document.querySelectorAll("#tbl thead th[data-k]").forEach(function(th){
+    var k=th.getAttribute("data-k"), sub=TH_SUB[k];
+    if(sub==null||th.querySelector(".th-main")) return;
+    var label=th.textContent.trim();
+    th.innerHTML='<span class="th-main">'+esc(label)+'</span>'
+      +(sub?'<span class="th-sub">'+esc(sub)+'</span>':'');
+  });
+}
+
 /* ================= 页签：总览 / 板块 ================= */
 var TAB_KEY="gxpanel_tab_v1";
 var SEC_ORDER=["大行","股份行","城商行","煤炭","油","电","通讯","保险"];
@@ -1486,6 +1498,7 @@ document.querySelectorAll("#colPop input").forEach(function(cb){
   });
 });
 applyCols();
+applyThSub();   /* 挂列名下的口径小字，须在首次渲染前 */
 
 /* ================= 自动刷新 =================
   交易日 9:14–15:05 每 30 秒（提醒开着且页面挂后台时 1 分钟）；其余时间每 5 分钟。
