@@ -4,6 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>高股息监控面板</title>
+<!-- ====== 百度统计 ======
+     去 https://tongji.baidu.com 注册 → 管理 → 新增网站 → 拿到「代码获取」里的 hm.js?XXX
+     把下行的 BAIDU_TONGJI_ID 换成那串字符，删掉本段注释里的「未配置」提示即可。
+     未替换前不会发出任何请求（下面的守卫会跳过）。
+     注：百度后台只显示访问量/来源/地区等汇总数据，看不到本机持仓（持仓只在浏览器 localStorage）。 -->
+<script>
+var BAIDU_TONGJI_ID="BAIDU_TONGJI_ID";   /* ← 换成你的 ID */
+if(BAIDU_TONGJI_ID&&BAIDU_TONGJI_ID!=="BAIDU_TONGJI_ID"){
+  var _hmt = _hmt || [];
+  (function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?"+BAIDU_TONGJI_ID;
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+  })();
+}
+</script>
 <style>
 :root{
   box-sizing:border-box;
