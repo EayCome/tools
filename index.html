@@ -182,8 +182,8 @@ tbody tr:hover td.name{background:var(--card)}
 td.dimmed{padding:22px 12px; text-align:center; color:var(--ink3)}
 
 /* ---- 技术层标记 ---- */
-.tag-line{
-  display:inline-block; margin-left:5px; padding:0 5px;
+.tag-line{                 /* display:table = 块级但宽度收缩：自动换到数值下一行，不再挤在同一行 */
+  display:table; margin-top:2px; padding:0 5px;
   font-size:11.5px; line-height:1.6; color:var(--brass);
   border:1px solid var(--brass); border-radius:2px;
 }
