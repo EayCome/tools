@@ -374,7 +374,7 @@ footer{
   行情来自腾讯公共接口（东方财富备用），双击本地打开即可自动更新，无需安装任何东西；行情或有延迟。<br>
   20日线、5日线、5月线、MACD 来自腾讯日K/月K（前复权）；贴线=现价距均线 ±0.6% 内（5月线 ±1.5%）。<br>
   技术买点=估值(股息率≥档位)+技术(跌破20日线或贴5月线)+止跌(站回5日线)三样齐为次核心，再加 MACD 红柱为核心。<br>
-  SKDJ买点=超卖金叉(3日内)+柱缩 两条件齐；SKDJ 列在 K<20 时标「超卖机会」；周SKDJ 为周K慢速随机，K>80=禁加仓；20月线=20个月收盘均价（判长期位置）；ROE=最新三季报×4/3年化；底仓列在跌破5日线或5日涨超7%时提示「守底仓」；口诀三格独立亮——「不能丢」=已到买入线（股息率≥档位）才亮，「不卖」=4%线内常亮（过线变「该减仓」），「不能买」=未到买入线（到了变「可买」）；底仓价6%=每股分红÷6%；PE/市值/换手/量比来自行情接口。<br>
+  SKDJ买点=超卖金叉(3日内)+柱缩 两条件齐；SKDJ 列 K<20 标「超卖机会」、K>80 标「超买风险」；周SKDJ 为周K慢速随机，K>80=禁加仓；20月线=20个月收盘均价（判长期位置）；ROE=最新三季报×4/3年化；底仓列在跌破5日线或5日涨超7%时提示「守底仓」；口诀三格独立亮——「不能丢」=已到买入线（股息率≥档位）才亮，「不卖」=4%线内常亮（过线变「该减仓」），「不能买」=未到买入线（到了变「可买」）；底仓价6%=每股分红÷6%；PE/市值/换手/量比来自行情接口。<br>
   股息率一律按「每股分红 ÷ 现价」计算，与目标成本口径一致；价位阶梯：5%线=买点、5~5.5%买入区、5.5%线=满仓、6%线=融资区，4.5~5%观望区、4%线以上减仓、3%线以上清仓；操作建议按目标成本位推算，未计费用税费；拿不住时（跌破5日线或连涨七八个点）按此思路算底仓。<br>
   买点提醒：现价距买入线（每股分红÷档位）≤3% 为「接近」、跌破为「到点」，点「提醒」授权后桌面通知+提示音，只在状态翻变时响一次；页面需保持开着（挂后台每分钟盯一次）。<br>
   持仓与缓存只保存在本机浏览器（localStorage），不上传、不联网传输；不构成任何投资建议。自选列表在文件内 <code>DATA</code> 处维护。
@@ -983,11 +983,13 @@ function rowsSorted(){
 function renderAll(){ renderStats(); renderTable(); renderPortfolio(); renderSector(); }
 
 function renderStats(){
-  var arr=rowsSorted(), up=0,down=0,flat=0, ys=[],bad=0, nNear=0,nHit=0;
+  var arr=rowsSorted(), up=0,down=0,flat=0, ys=[],bad=0, nNear=0,nHit=0, nOb=0,nOs=0;
   var sigN={trim:0,buy:0,hold:0,wait:0};
   arr.forEach(function(r){
     sigN[r.sig.type]++;
     if(r.hit)nHit++; else if(r.near!=null)nNear++;
+    if(r.sk!=null&&r.sk>80)nOb++;          /* 日线 SKDJ 超买风险 */
+    if(r.sk!=null&&r.sk<20)nOs++;          /* 日线 SKDJ 超卖机会 */
     if(r.pct==null){bad++;return;}
     if(r.pct>0)up++; else if(r.pct<0)down++; else flat++;
     if(r.yld!=null)ys.push(r.yld);
@@ -1003,6 +1005,8 @@ function renderStats(){
     +'<span class="stat">股息率≥6% <b>'+ge6+'</b> 只</span>'
     +(nHit?'<span class="stat" style="border-color:var(--jade);color:var(--jade)">已到买点 <b>'+nHit+'</b></span>':'')
     +(nNear?'<span class="stat" style="border-color:var(--brass);color:var(--brass)">接近买点 <b>'+nNear+'</b></span>':'')
+    +(nOb?'<span class="stat" style="border-color:var(--rust);color:var(--rust)">超买风险 <b>'+nOb+'</b></span>':'')
+    +(nOs?'<span class="stat" style="border-color:var(--jade);color:var(--jade)">超卖机会 <b>'+nOs+'</b></span>':'')
     +(sigN.trim?'<span class="stat" style="border-color:var(--rust);color:var(--rust)">建议减仓 <b>'+sigN.trim+'</b></span>':'')
     +(sigN.buy?'<span class="stat" style="border-color:var(--jade);color:var(--jade)">建议买入/补仓 <b>'+sigN.buy+'</b></span>':'')
     +(sigN.hold?'<span class="stat">持有 <b>'+sigN.hold+'</b></span>':'')
@@ -1110,9 +1114,11 @@ function renderTable(){
       +'<td class="n g-tech">'+(m.ma20m>0?m.ma20m.toFixed(2)
             +((r.price>0)?'<span class="sub '+pctCls((r.price-m.ma20m)/m.ma20m*100)+'">'+(r.price>=m.ma20m?"+":"")+((r.price-m.ma20m)/m.ma20m*100).toFixed(1)+'%</span>':'')
           :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
-      +'<td class="n g-tech" title="日K慢速随机 SK/SD">'+((m.sk>0&&m.sd>0)
+      +'<td class="n g-tech" title="日K慢速随机 SK/SD：K≤20 超卖、上穿=金叉、K>80 超买风险">'+((m.sk>0&&m.sd>0)
             ? m.sk.toFixed(1)+'<span class="sub">'+m.sd.toFixed(1)+'</span>'
-              +(m.sk<20?'<span class="tag-line tag-brk">超卖机会</span>':(gxm?'<span class="tag-line tag-brk">超卖金叉</span>':''))
+              +(m.sk>80?'<span class="tag-line" style="color:var(--rust);border-color:var(--rust);font-weight:700">超买风险</span>'
+                :(m.sk<20?'<span class="tag-line tag-brk">超卖机会</span>'
+                  :(gxm?'<span class="tag-line tag-brk">超卖金叉</span>':'')))
             :(mld?'<span class="muted">…</span>':'<span class="muted">—</span>'))+'</td>'
       +'<td class="n g-tech" title="MACD 柱值（DIF−DEA）；缩=绝对值较前一根收窄">'+(r.hist!=null
             ? '<span class="'+(r.hist>0?"up":"down")+'">'+(r.hist>0?"+":"")+r.hist.toFixed(3)+'</span>'
